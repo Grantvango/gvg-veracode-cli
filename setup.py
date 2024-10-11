@@ -1,13 +1,17 @@
 from setuptools import setup, find_packages
 
+
+# Function to read the requirements from requirements.txt
+def read_requirements():
+    with open("requirements.txt") as req_file:
+        return req_file.read().splitlines()
+
+
 setup(
     name="veracode-wrapper",
     version="0.1.0",
     packages=find_packages(),
-    install_requires=[
-        # List your package dependencies here
-        # e.g., 'numpy', 'requests'
-    ],
+    install_requires=read_requirements(),
     author="GVG",
     author_email="gvgpython@gmail.com",
     description="A veracode wrapper - auto package and scan your code using Veracode's agent based scanner and pipeline scan.",

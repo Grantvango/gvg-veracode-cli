@@ -4,6 +4,7 @@ import requests
 import tarfile
 import zipfile
 import platform
+import subprocess
 
 # Set the environment variable for the temporary folder
 TEMP_DIR = os.path.join(os.path.expanduser("~"), ".veracode_tmp")
@@ -18,29 +19,24 @@ VERACODE_CLI_URL = "https://downloads.veracode.com/securityscan/veracode-cli/ins
 
 
 def download_and_setup_srcclr():
-    print("Downloading srcclr CLI agent...")
-    response = requests.get(SRCCLR_URL, stream=True)
-    if response.status_code == 200:
-        tarball_path = os.path.join(TEMP_DIR, "srcclr-agent.tgz")
-        with open(tarball_path, "wb") as tarball_file:
-            for chunk in response.iter_content(chunk_size=1024):
-                if chunk:
-                    tarball_file.write(chunk)
-        print(f"Downloaded srcclr CLI agent to {tarball_path}")
+    print("Setting up srcclr CLI agent using local srcclr_install.sh script...")
+    install_script_path = os.path.join(os.path.dirname(__file__), "srcclr_install.sh")
 
-        # Extract the tarball
-        with tarfile.open(tarball_path, "r:gz") as tar:
-            tar.extractall(path=TEMP_DIR)
-        print(f"Extracted srcclr CLI agent to {TEMP_DIR}")
+    try:
+        # Ensure the script exists
+        if not os.path.exists(install_script_path):
+            print(f"srcclr_install.sh script not found at {install_script_path}")
+            return
 
-        # Make the srcclr binary executable (Unix-like systems)
-        if platform.system() != "Windows":
-            srcclr_path = os.path.join(TEMP_DIR, "srcclr")
-            os.chmod(srcclr_path, 0o755)
-            print(f"srcclr CLI agent is set up at {srcclr_path}")
-    else:
+        # Make the script executable
+        os.chmod(install_script_path, 0o755)
+
+        # Execute the local install.sh script with "local" argument
+        subprocess.run(f"{install_script_path}", shell=True, check=True)
+        print("srcclr CLI agent is set up successfully.")
+    except subprocess.CalledProcessError as e:
         print(
-            f"Failed to download srcclr CLI agent. Status code: {response.status_code}"
+            f"Failed to run local srcclr_install.sh script for srcclr CLI agent. Error: {e}"
         )
 
 
@@ -114,7 +110,10 @@ def download_and_setup_veracode_cli():
         )
 
 
-def setup_veracode_api_creds(api_id, api_key):
+def setup_veracode_api_creds():
+    api_id = input("Enter your Veracode API ID: ")
+    api_key = input("Enter your Veracode API Key: ")
+
     creds_path = os.path.join(os.path.expanduser("~"), ".veracode", "credentials")
     os.makedirs(os.path.dirname(creds_path), exist_ok=True)
     with open(creds_path, "w") as creds_file:
@@ -122,6 +121,34 @@ def setup_veracode_api_creds(api_id, api_key):
             f"[default]\nveracode_api_key_id = {api_id}\nveracode_api_key_secret = {api_key}\n"
         )
     print(f"Veracode API credentials set up at {creds_path}")
+
+
+def validate_setup():
+    creds_path = os.path.join(os.path.expanduser("~"), ".veracode", "credentials")
+    if not os.path.exists(creds_path):
+        print("Veracode API credentials not found. Please set up the credentials.")
+        return False
+
+    with open(creds_path, "r") as creds_file:
+        lines = creds_file.readlines()
+        api_id = lines[1].split(" = ")[1].strip()
+        api_key = lines[2].split(" = ")[1].strip()
+
+    # Send a simple API request to Veracode to validate credentials
+    url = "https://analysiscenter.veracode.com/api/5.0/getapplist.do"
+    headers = {"Authorization": f"Basic {api_id}:{api_key}"}
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        print(
+            "Validation complete. All tools are set up and Veracode API credentials are valid."
+        )
+        return True
+    else:
+        print(
+            f"Failed to validate Veracode API credentials. Status code: {response.status_code}"
+        )
+        return False
 
 
 def process_directory(directory):
@@ -156,34 +183,42 @@ def process_url(url):
 
 def main():
     parser = argparse.ArgumentParser(description="Process a directory or URL")
-    group = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument(
+        "--setup", action="store_true", help="Set up all tools and credentials"
+    )
+    group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument("--dir", type=str, help="Directory to process")
     group.add_argument("--url", type=str, help="URL to process")
-    parser.add_argument("--api-id", type=str, help="Veracode API ID")
-    parser.add_argument("--api-key", type=str, help="Veracode API Key")
 
     args = parser.parse_args()
 
-    if args.dir:
-        process_directory(args.dir)
-    elif args.url:
-        process_url(args.url)
+    if args.setup:
+        # Download and set up all tools
+        download_and_setup_srcclr()
+        # download_and_setup_veracode_pipeline_scanner()
+        # download_and_setup_veracode_wrapper()
+        # download_and_setup_veracode_cli()
 
-    # Download and set up srcclr CLI agent
-    download_and_setup_srcclr()
+        # Prompt user to set up Veracode API credentials
+        setup_veracode_api_creds()
 
-    # Download and set up Veracode pipeline scanner
-    download_and_setup_veracode_pipeline_scanner()
+    #     # Validate setup
+    #     if not validate_setup():
+    #         return
 
-    # Download and set up Veracode wrapper
-    download_and_setup_veracode_wrapper()
+    #     print(
+    #         "Setup complete. You can now run the script with --dir or --url to process a directory or URL."
+    #     )
+    #     return
 
-    # Download and set up Veracode CLI tool
-    download_and_setup_veracode_cli()
+    # if args.dir is None and args.url is None:
+    #     parser.error("No action requested, add --dir or --url")
 
-    # Set up Veracode API credentials if provided
-    if args.api_id and args.api_key:
-        setup_veracode_api_creds(args.api_id, args.api_key)
+    # # Process directory or URL
+    # if args.dir:
+    #     process_directory(args.dir)
+    # elif args.url:
+    #     process_url(args.url)
 
 
 if __name__ == "__main__":

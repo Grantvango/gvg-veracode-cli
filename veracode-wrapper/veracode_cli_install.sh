@@ -173,7 +173,5 @@ mkdir -p "${CLI_EXTRACTION_DIR}"
 
 { cd "${TMPDIR}"; ${CURL_C} --progress-bar "${DOWNLOAD_URL}/veracode-cli_${LATEST_VERSION}_${tgz_suffix}.tar.gz" | tar zxf - -C "${CLI_EXTRACTION_DIR}"; }
 
-cd $RUNDIR
-
 # Echo message indicating successful installation
 echo "Veracode CLI was installed properly in ${CLI_EXTRACTION_DIR}"

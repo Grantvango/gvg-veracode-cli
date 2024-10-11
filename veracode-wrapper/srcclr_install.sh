@@ -117,9 +117,6 @@ fi
 #
 # Fetch the latest srcclr tgz, and continue with local install.
 #
-# ALWAYS USE THE LATEST VERSION OF SRCCLR, CHANGE THE SRCCLR VERSION
-# AT YOUR OWN RISK!
-#
 LATEST_VERSION=${SRCCLR_VERSION:-$(${CURL_C} --silent ${DOWNLOAD_URL}/LATEST_VERSION)}
 if [ "$?" -ne 0 ] ; then
   exit 1

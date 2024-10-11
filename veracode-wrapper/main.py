@@ -31,7 +31,7 @@ def download_and_setup_srcclr():
         # Make the script executable
         os.chmod(install_script_path, 0o755)
 
-        # Execute the local install.sh script with "local" argument
+        # Execute the local install.sh script
         subprocess.run(f"{install_script_path}", shell=True, check=True)
         print("srcclr CLI agent is set up successfully.")
     except subprocess.CalledProcessError as e:
@@ -51,62 +51,43 @@ def download_and_setup_veracode_pipeline_scanner():
                     zip_file.write(chunk)
         print(f"Downloaded Veracode pipeline scanner to {zip_path}")
 
-        # Extract the zip file
+        # Extract the zip file to .veracode_tmp/pipeline_scanner-latest
+        extraction_dir = os.path.join(TEMP_DIR, "pipeline_scanner-latest")
+        os.makedirs(extraction_dir, exist_ok=True)
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(TEMP_DIR)
-        print(f"Extracted Veracode pipeline scanner to {TEMP_DIR}")
+            zip_ref.extractall(extraction_dir)
+        print(f"Extracted Veracode pipeline scanner to {extraction_dir}")
 
-        # Make the pipeline scanner script executable (Unix-like systems)
-        if platform.system() != "Windows":
-            scanner_path = os.path.join(TEMP_DIR, "pipeline-scan.sh")
-            os.chmod(scanner_path, 0o755)
-            print(f"Veracode pipeline scanner is set up at {scanner_path}")
+        # Remove the zip file after extraction
+        os.remove(zip_path)
+        print(f"Removed the zip file {zip_path}")
     else:
         print(
             f"Failed to download Veracode pipeline scanner. Status code: {response.status_code}"
         )
 
 
-def download_and_setup_veracode_wrapper():
-    print("Downloading Veracode wrapper...")
-    response = requests.get(VERACODE_WRAPPER_URL, stream=True)
-    if response.status_code == 200:
-        jar_path = os.path.join(TEMP_DIR, "veracode-wrapper.jar")
-        with open(jar_path, "wb") as jar_file:
-            for chunk in response.iter_content(chunk_size=1024):
-                if chunk:
-                    jar_file.write(chunk)
-        print(f"Downloaded Veracode wrapper to {jar_path}")
-    else:
-        print(
-            f"Failed to download Veracode wrapper. Status code: {response.status_code}"
-        )
-
-
 def download_and_setup_veracode_cli():
-    print("Downloading Veracode CLI tool...")
-    response = requests.get(VERACODE_CLI_URL, stream=True)
-    if response.status_code == 200:
-        zip_path = os.path.join(TEMP_DIR, "veracode-cli.zip")
-        with open(zip_path, "wb") as zip_file:
-            for chunk in response.iter_content(chunk_size=1024):
-                if chunk:
-                    zip_file.write(chunk)
-        print(f"Downloaded Veracode CLI tool to {zip_path}")
+    print("Setting up Veracode CLI tool using local veracode_cli_install.sh script...")
+    install_script_path = os.path.join(
+        os.path.dirname(__file__), "veracode_cli_install.sh"
+    )
 
-        # Extract the zip file
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(TEMP_DIR)
-        print(f"Extracted Veracode CLI tool to {TEMP_DIR}")
+    try:
+        # Ensure the script exists
+        if not os.path.exists(install_script_path):
+            print(f"veracode_cli_install.sh script not found at {install_script_path}")
+            return
 
-        # Make the CLI tool executable (Unix-like systems)
-        if platform.system() != "Windows":
-            cli_path = os.path.join(TEMP_DIR, "veracode", "veracode")
-            os.chmod(cli_path, 0o755)
-            print(f"Veracode CLI tool is set up at {cli_path}")
-    else:
+        # Make the script executable
+        os.chmod(install_script_path, 0o755)
+
+        # Execute the local install.sh script
+        subprocess.run(f"{install_script_path}", shell=True, check=True)
+        print("Veracode CLI tool is set up successfully.")
+    except subprocess.CalledProcessError as e:
         print(
-            f"Failed to download Veracode CLI tool. Status code: {response.status_code}"
+            f"Failed to run local veracode_cli_install.sh script for Veracode CLI tool. Error: {e}"
         )
 
 
@@ -195,9 +176,8 @@ def main():
     if args.setup:
         # Download and set up all tools
         download_and_setup_srcclr()
-        # download_and_setup_veracode_pipeline_scanner()
-        # download_and_setup_veracode_wrapper()
-        # download_and_setup_veracode_cli()
+        download_and_setup_veracode_pipeline_scanner()
+        download_and_setup_veracode_cli()
 
         # Prompt user to set up Veracode API credentials
         setup_veracode_api_creds()

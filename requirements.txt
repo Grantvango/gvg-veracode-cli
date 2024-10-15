@@ -1,2 +1,4 @@
 Requests==2.32.3
 setuptools==68.1.2
+veracode_api_signing=22.3.0
+

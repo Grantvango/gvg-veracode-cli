@@ -514,11 +514,16 @@ def locate_srcclr():
     """
     base_dir = os.path.join(TEMP_DIR, "srcclr-latest")
     for root, dirs, files in os.walk(base_dir):
-        for file in files:
-            if file.startswith("srcclr-") and file.endswith(".jar"):
-                jre_path = os.path.join(root, "jre", "bin", "java")
-                if os.path.exists(jre_path):
-                    return os.path.join(root, file), jre_path
+        for dir in dirs:
+            srcclr_path = os.path.join(root, dir, "bin", "srcclr")
+            # return the file path
+            return srcclr_path
+    
+    # for file in files: in dirs:
+    #     if file.startswith("srcclr-") and file.endswith(".jar"):
+    #         jre_path = os.path.join(root, "jre", "bin", "java")
+    #         if os.path.exists(jre_path):
+    #             return os.path.join(root, file), jre_path
     raise FileNotFoundError(
         "Veracode SCA agent JAR or JRE not found. Please ensure they are downloaded and set up correctly."
     )
@@ -528,9 +533,9 @@ def srcclr_scan(directory):
     """
     Run the Veracode SCA agent scan command
     """
-    srcclr_path, jre_path = locate_srcclr()
-    srcclr_scan_command = f"{jre_path} -jar {srcclr_path} scan {directory} --no-upload"
-    
+    srcclr_path = locate_srcclr()
+    srcclr_scan_command = f"{srcclr_path} scan {directory} --no-upload"
+    logging.info(srcclr_scan_command)
     result = subprocess.run(srcclr_scan_command.split(), capture_output=True, text=True)
     if result.returncode == 0:
         print(result.stdout)

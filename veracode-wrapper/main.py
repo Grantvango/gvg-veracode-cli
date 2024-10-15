@@ -57,13 +57,13 @@ def download_and_setup_srcclr():
     """
     Download and setup the srcclr CLI agent
     """
-    print("Setting up srcclr CLI agent using local srcclr_install.sh script...")
+    logging.info("Setting up srcclr CLI agent using local srcclr_install.sh script...")
     install_script_path = os.path.join(os.path.dirname(__file__), "srcclr_install.sh")
 
     try:
         # Ensure the script exists
         if not os.path.exists(install_script_path):
-            print(f"srcclr_install.sh script not found at {install_script_path}")
+            logging.info(f"srcclr_install.sh script not found at {install_script_path}")
             return
 
         # Make the script executable
@@ -71,9 +71,9 @@ def download_and_setup_srcclr():
 
         # Execute the local install.sh script
         subprocess.run(f"{install_script_path}", shell=True, check=True)
-        print("srcclr CLI agent is set up successfully.")
+        logging.info("srcclr CLI agent is set up successfully.")
     except subprocess.CalledProcessError as e:
-        print(
+        logging.info(
             f"Failed to run local srcclr_install.sh script for srcclr CLI agent. Error: {e}"
         )
 
@@ -82,7 +82,7 @@ def download_and_setup_veracode_pipeline_scanner():
     """
     Download and setup the Veracode pipeline scanner
     """
-    print("Downloading Veracode pipeline scanner...")
+    logging.info("Downloading Veracode pipeline scanner...")
     response = requests.get(VERACODE_PIPELINE_SCANNER_URL, stream=True)
     if response.status_code == 200:
         zip_path = os.path.join(TEMP_DIR, "pipeline-scan-LATEST.zip")
@@ -90,20 +90,20 @@ def download_and_setup_veracode_pipeline_scanner():
             for chunk in response.iter_content(chunk_size=1024):
                 if chunk:
                     zip_file.write(chunk)
-        print(f"Downloaded Veracode pipeline scanner to {zip_path}")
+        logging.info(f"Downloaded Veracode pipeline scanner to {zip_path}")
 
         # Extract the zip file to .veracode_tmp/pipeline_scanner-latest
         extraction_dir = os.path.join(TEMP_DIR, "pipeline_scanner-latest")
         os.makedirs(extraction_dir, exist_ok=True)
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             zip_ref.extractall(extraction_dir)
-        print(f"Extracted Veracode pipeline scanner to {extraction_dir}")
+        logging.info(f"Extracted Veracode pipeline scanner to {extraction_dir}")
 
         # Remove the zip file after extraction
         os.remove(zip_path)
-        print(f"Removed the zip file {zip_path}")
+        logging.info(f"Removed the zip file {zip_path}")
     else:
-        print(
+        logging.info(
             f"Failed to download Veracode pipeline scanner. Status code: {response.status_code}"
         )
 
@@ -112,7 +112,7 @@ def download_and_setup_veracode_cli():
     """
     Download and setup the Veracode CLI tool
     """
-    print("Setting up Veracode CLI tool using local veracode_cli_install.sh script...")
+    logging.info("Setting up Veracode CLI tool using local veracode_cli_install.sh script...")
     install_script_path = os.path.join(
         os.path.dirname(__file__), "veracode_cli_install.sh"
     )
@@ -120,7 +120,7 @@ def download_and_setup_veracode_cli():
     try:
         # Ensure the script exists
         if not os.path.exists(install_script_path):
-            print(f"veracode_cli_install.sh script not found at {install_script_path}")
+            logging.info(f"veracode_cli_install.sh script not found at {install_script_path}")
             return
 
         # Make the script executable
@@ -128,9 +128,9 @@ def download_and_setup_veracode_cli():
 
         # Execute the local install.sh script
         subprocess.run(f"{install_script_path}", shell=True, check=True)
-        print("Veracode CLI tool is set up successfully.")
+        logging.info("Veracode CLI tool is set up successfully.")
     except subprocess.CalledProcessError as e:
-        print(
+        logging.info(
             f"Failed to run local veracode_cli_install.sh script for Veracode CLI tool. Error: {e}"
         )
 
@@ -142,7 +142,7 @@ def validate_setup():
     creds_path = os.path.join(os.path.expanduser("~"), ".veracode", "credentials")
 
     if not os.path.exists(creds_path):
-        print("Veracode API credentials not found. Please set up the credentials.")
+        logging.info("Veracode API credentials not found. Please set up the credentials.")
         setup_veracode_api_creds()
 
     # Send a simple API request to Veracode to validate credentials
@@ -152,12 +152,12 @@ def validate_setup():
     )
 
     if response.status_code == 200:
-        print(
+        logging.info(
             "Validation complete. All tools are set up and Veracode API credentials are valid."
         )
         return True
     else:
-        print(
+        logging.info(
             f"Failed to validate Veracode API credentials. Status code: {response.status_code}, Response: {response.text}"
         )
         return False
@@ -176,7 +176,7 @@ def setup_veracode_api_creds():
         creds_file.write(
             f"[default]\nveracode_api_key_id = {api_id}\nveracode_api_key_secret = {api_key}\n"
         )
-    print(f"Veracode API credentials set up at {creds_path}")
+    logging.info(f"Veracode API credentials set up at {creds_path}")
 
 
 def create_srcclr_agent(workspace_id, agent_name):
@@ -190,12 +190,12 @@ def create_srcclr_agent(workspace_id, agent_name):
         url, json=payload, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
     )
     if response.status_code == 200:
-        print("Agent created successfully.")
+        logging.info("Agent created successfully.")
         agent = response.json()
         token = agent.get("access_token")
         if token:
             os.environ["SRCCLR_API_TOKEN"] = token
-            print("SRCCLR_API_TOKEN environment variable set.")
+            logging.info("SRCCLR_API_TOKEN environment variable set.")
 
             # Create or update agent.yml in .srcclr directory
             srcclr_dir = os.path.join(os.path.expanduser("~"), ".srcclr")
@@ -209,10 +209,10 @@ def create_srcclr_agent(workspace_id, agent_name):
 
             os.chmod(agent_yml_path, 0o600)
 
-            print("agent.yml file updated with the new token.")
+            logging.info("agent.yml file updated with the new token.")
         return agent.get("id")
     else:
-        print(
+        logging.info(
             f"Failed to create agent. Status code: {response.status_code}, Response: {response.text}"
         )
         return None
@@ -236,7 +236,7 @@ def setup_srcclr_workspace():
                     return line.split("=")[1].strip()
 
     # If the workspace ID is not found in the setup file, retrieve it from the API
-    print("srcclr_workspace ID not found in setup file. Retrieving from workspaces.")
+    logging.info("srcclr_workspace ID not found in setup file. Retrieving from workspaces.")
     url = f"{SRCCLR_API_BASE_URL}/workspaces"
     response = requests.get(
         url, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
@@ -249,12 +249,12 @@ def setup_srcclr_workspace():
                 os.makedirs(srcclr_dir, exist_ok=True)
                 with open(setup_file, "a") as file:
                     file.write(f"srcclr_workspace = {workspace_id}\n")
-                print(f"Workspace ID written to setup file.")
+                logging.info(f"Workspace ID written to setup file.")
                 return workspace_id
-        print("Workspace 'My Workspace' not found.")
+        logging.info("Workspace 'My Workspace' not found.")
         return None
     else:
-        print(
+        logging.info(
             f"Failed to retrieve workspaces. Status code: {response.status_code}, Response: {response.text}"
         )
         return None
@@ -270,10 +270,10 @@ def create_srcclr_token(agent_id):
         url, json=payload, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
     )
     if response.status_code == 201:
-        print("Token created successfully.")
+        logging.info("Token created successfully.")
         return response.json()
     else:
-        print(
+        logging.info(
             f"Failed to create token. Status code: {response.status_code}, Response: {response.text}"
         )
         return None
@@ -294,7 +294,7 @@ def setup_srcclr_agent(workspace_id):
                     return line.split("=")[1].strip()
 
     # If the agent ID is not found in the setup file, retrieve it from the API
-    print("srcclr_agent ID not found in setup file. Retrieving from API.")
+    logging.info("srcclr_agent ID not found in setup file. Retrieving from API.")
 
     url = f"{SRCCLR_API_BASE_URL}/workspaces/{workspace_id}/agents"
     response = requests.get(
@@ -308,13 +308,13 @@ def setup_srcclr_agent(workspace_id):
                 os.makedirs(srcclr_dir, exist_ok=True)
                 with open(setup_file, "a") as file:
                     file.write(f"srcclr_agent = {agent_id}\n")
-                print(f"Agent ID written to setup file.")
+                logging.info(f"Agent ID written to setup file.")
                 return agent_id
 
         # If no existing agent is found, create a new agent
-        print("No existing agent found. Creating a new agent named 'CLI'.")
+        logging.info("No existing agent found. Creating a new agent named 'CLI'.")
         return create_srcclr_agent(workspace_id, "CLI")
-    print("Issue setting up agent.")
+    logging.info("Issue setting up agent.")
     return None
 
 
@@ -327,11 +327,11 @@ def regenerate_srcclr_token(workspace_id, agent_id):
         url, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
     )
     if response.status_code == 200:
-        print("Token regenerated successfully.")
+        logging.info("Token regenerated successfully.")
         token = response.json().get("access_token")
         if token:
             os.environ["SRCCLR_API_TOKEN"] = token
-            print("SRCCLR_API_TOKEN environment variable set.")
+            logging.info("SRCCLR_API_TOKEN environment variable set.")
 
             # Create or update agent.yml in .srcclr directory
             srcclr_dir = os.path.join(os.path.expanduser("~"), ".srcclr")
@@ -345,10 +345,10 @@ def regenerate_srcclr_token(workspace_id, agent_id):
 
             os.chmod(agent_yml_path, 0o600)
 
-            print("agent.yml file updated with the new token.")
+            logging.info("agent.yml file updated with the new token.")
         return
     else:
-        print(
+        logging.info(
             f"Failed to regenerate token. Status code: {response.status_code}, Response: {response.text}"
         )
         return
@@ -367,7 +367,7 @@ def setup_srcclr_agent_and_token():
     agent_id = setup_srcclr_agent(workspace_id)
 
     if not agent_id:
-        print("Agent ID was not found or setup incorrectly.")
+        logging.info("Agent ID was not found or setup incorrectly.")
         return
 
     regenerate_srcclr_token(workspace_id, agent_id)
@@ -380,15 +380,15 @@ def process_directory(directory):
     Process the given directory
     """
     if os.path.isdir(directory):
-        print(f"Processing directory: {directory}")
+        logging.info(f"Processing directory: {directory}")
         # Add your directory processing logic here
         # Example: Create a file in the temporary directory
         temp_file_path = os.path.join(TEMP_DIR, "directory_output.txt")
         with open(temp_file_path, "w") as temp_file:
             temp_file.write(f"Processed directory: {directory}\n")
-        print(f"Output written to {temp_file_path}")
+        logging.info(f"Output written to {temp_file_path}")
     else:
-        print(f"Error: {directory} is not a valid directory")
+        logging.info(f"Error: {directory} is not a valid directory")
 
 
 def process_url(url):
@@ -398,17 +398,17 @@ def process_url(url):
     try:
         response = requests.get(url)
         if response.status_code == 200:
-            print(f"Processing URL: {url}")
+            logging.info(f"Processing URL: {url}")
             # Add your URL processing logic here
             # Example: Create a file in the temporary directory
             temp_file_path = os.path.join(TEMP_DIR, "url_output.txt")
             with open(temp_file_path, "w") as temp_file:
                 temp_file.write(f"Processed URL: {url}\n")
-            print(f"Output written to {temp_file_path}")
+            logging.info(f"Output written to {temp_file_path}")
         else:
-            print(f"Error: Unable to access URL {url}")
+            logging.info(f"Error: Unable to access URL {url}")
     except requests.exceptions.RequestException as e:
-        print(f"Error: {e}")
+        logging.info(f"Error: {e}")
 
 
 def locate_pipeline_scan():
@@ -474,7 +474,7 @@ def veracode_pipeline_scan(command):
     )
     if result.returncode == 0:
         logging.info("Pipeline scan completed successfully.")
-        print(result.stdout)
+        logging.info(result.stdout)
     else:
         logging.error(f"Pipeline scan failed with error: {result.stderr}")
 
@@ -484,7 +484,7 @@ def locate_veracode_cli():
     Locate the Veracode CLI script in the temporary directory
     """
     base_dir = os.path.join(TEMP_DIR, "veracode-cli-latest")
-    print(base_dir)
+    logging.info(base_dir)
     for root, dirs, files in os.walk(base_dir):
         for file in files:
             if file == "veracode":
@@ -503,9 +503,9 @@ def veracode_cli(command):
         [veracode_cli_path] + command.split(), capture_output=True, text=True
     )
     if result.returncode == 0:
-        print(result.stdout)
+        logging.info(result.stdout)
     else:
-        print(f"Error: {result.stderr}")
+        logging.info(f"Error: {result.stderr}")
 
 
 def locate_srcclr():
@@ -514,18 +514,19 @@ def locate_srcclr():
     """
     base_dir = os.path.join(TEMP_DIR, "srcclr-latest")
     for root, dirs, files in os.walk(base_dir):
-        for dir in dirs:
-            srcclr_path = os.path.join(root, dir, "bin", "srcclr")
-            # return the file path
-            return srcclr_path
-    
+        for directory in dirs:
+            if directory.startswith("srcclr-"):
+                srcclr_path = os.path.join(root, directory, "bin", "srcclr")
+                # return the file path
+                return srcclr_path
+
     # for file in files: in dirs:
     #     if file.startswith("srcclr-") and file.endswith(".jar"):
     #         jre_path = os.path.join(root, "jre", "bin", "java")
     #         if os.path.exists(jre_path):
     #             return os.path.join(root, file), jre_path
     raise FileNotFoundError(
-        "Veracode SCA agent JAR or JRE not found. Please ensure they are downloaded and set up correctly."
+        "Veracode SCA agent srcclr not found. Please ensure they are downloaded and set up correctly."
     )
 
 
@@ -538,9 +539,9 @@ def srcclr_scan(directory):
     logging.info(srcclr_scan_command)
     result = subprocess.run(srcclr_scan_command.split(), capture_output=True, text=True)
     if result.returncode == 0:
-        print(result.stdout)
+        logging.info(result.stdout)
     else:
-        print(f"Error running srcclr: {result.stderr}")
+        logging.info(f"Error running srcclr: {result.stderr}")
 
 
 def scan_dir(directory):
@@ -566,13 +567,13 @@ def scan_dir(directory):
     # for root, dirs, files in os.walk(package_path):
     #     for file in files:
     #         file_path = os.path.join(root, file)
-    #         print(f"Running Veracode pipeline scan on: {file_path}")
+    #         logging.info(f"Running Veracode pipeline scan on: {file_path}")
     #         veracode_pipeline_scan(f"--file {file_path}")
 
     # Run the Agent-based scanner
     logging.info(f"Running Veracode agent-based scan on: {directory}")
-    # print(get_srcclr_agents("8439ffc7-53e4-438b-93d5-8132af8b770e"))
-    # print(
+    # logging.info(get_srcclr_agents("8439ffc7-53e4-438b-93d5-8132af8b770e"))
+    # logging.info(
     #     regenerate_srcclr_token(
     #         "593aa76d-998c-4981-9ab1-ba0df1435ca9",
     #         "8439ffc7-53e4-438b-93d5-8132af8b770e",
@@ -617,7 +618,7 @@ def main():
         if not validate_setup():
             return
 
-        print(
+        logging.info(
             "Setup complete. You can now run the script with --dir, --url, or --file to scan a directory, URL, or artifact."
         )
         return
@@ -628,12 +629,12 @@ def main():
 
     # Process the directory, URL, or artifact
     if args.dir:
-        print(f"Processing directory: {args.dir}")
+        logging.info(f"Processing directory: {args.dir}")
         scan_dir(args.dir)
     elif args.url:
-        print(f"Processing URL: {args.url}")
+        logging.info(f"Processing URL: {args.url}")
     elif args.file:
-        print(f"Processing artifact file: {args.file}")
+        logging.info(f"Processing artifact file: {args.file}")
 
 
 if __name__ == "__main__":

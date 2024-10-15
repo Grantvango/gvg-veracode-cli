@@ -237,7 +237,7 @@ def setup_srcclr_workspace():
 
     # If the workspace ID is not found in the setup file, retrieve it from the API
     logging.info("srcclr_workspace ID not found in setup file. Retrieving from workspaces.")
-    url = f"{SRCCLR_API_BASE_URL}/workspaces"
+    url = f"{SRCCLR_API_BASE_URL}/workspaces?filter%5Bworkspace%5D=My%20Workspace"
     response = requests.get(
         url, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
     )
@@ -337,7 +337,7 @@ def regenerate_srcclr_token(workspace_id, agent_id):
             srcclr_dir = os.path.join(os.path.expanduser("~"), ".srcclr")
             os.makedirs(srcclr_dir, exist_ok=True)
             agent_yml_path = os.path.join(srcclr_dir, "agent.yml")
-
+           
             agent_data = f"agentAuthorization: {token}\n"
 
             with open(agent_yml_path, "w") as agent_yml_file:

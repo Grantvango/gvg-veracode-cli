@@ -1,11 +1,13 @@
 import argparse
 import os
+import sys
 import requests
 import tarfile
 import zipfile
 import platform
 import subprocess
 import logging
+import logging.handlers
 
 from veracode_api_signing.plugin_requests import RequestsAuthPluginVeracodeHMAC
 
@@ -22,11 +24,26 @@ SRCCLR_API_BASE_URL = "https://api.veracode.com/srcclr/v3"
 log_dir = os.path.join(TEMP_DIR, "logs")
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, "veracode_pipeline_scan.log")
-logging.basicConfig(
-    filename=log_file,
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
+rootLogger = logging.getLogger()
+# Write log in both console as well file
+
+fileHandler = logging.FileHandler(log_file)
+
+logFormatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+fileHandler.setFormatter(logFormatter)
+rootLogger.addHandler(fileHandler)
+
+consoleHandler = logging.StreamHandler(sys.stdout)
+consoleHandler.setFormatter(logFormatter)
+rootLogger.addHandler(consoleHandler)
+rootLogger.setLevel(logging.DEBUG)
+
+
+# logging.basicConfig(
+#     filename=log_file,
+#     level=logging.INFO,
+#     format="%(asctime)s - %(levelname)s - %(message)s",
+# )
 
 
 def get_headers():
@@ -166,6 +183,7 @@ def create_srcclr_agent(workspace_id, agent_name):
     """
     Create a new agent in the Veracode SourceClear platform
     """
+    
     url = f"{SRCCLR_API_BASE_URL}/workspaces/{workspace_id}/agents"
     payload = {"agent_type": "CLI", "name": agent_name}
     response = requests.post(
@@ -343,7 +361,7 @@ def setup_srcclr_agent_and_token():
     workspace_id = setup_srcclr_workspace()
 
     if not workspace_id:
-        print("Workspace ID was not found or setup incorrectly.")
+        logging.info("Workspace ID was not found or setup incorrectly.")
         return
 
     agent_id = setup_srcclr_agent(workspace_id)
@@ -512,7 +530,7 @@ def srcclr_scan(directory):
     """
     srcclr_path, jre_path = locate_srcclr()
     srcclr_scan_command = f"{jre_path} -jar {srcclr_path} scan {directory} --no-upload"
-
+    
     result = subprocess.run(srcclr_scan_command.split(), capture_output=True, text=True)
     if result.returncode == 0:
         print(result.stdout)
@@ -524,7 +542,7 @@ def scan_dir(directory):
     """
     Scan the given directory
     """
-    print(f"Scanning directory: {directory}")
+    logging.info(f"Scanning directory: {directory}")
 
     # Create the output directory for autopackager
     package_output_dir = os.path.join(TEMP_DIR, "packages")
@@ -534,7 +552,7 @@ def scan_dir(directory):
     package_name = os.path.basename(os.path.normpath(directory))
     package_path = os.path.join(package_output_dir, package_name)
 
-    # # Run the Veracode CLI tool to autopackage the directory
+    # Run the Veracode CLI tool to autopackage the directory
     # veracode_cli(
     #     f"package --source {directory} --type directory --trust --output {package_path}"
     # )
@@ -547,7 +565,7 @@ def scan_dir(directory):
     #         veracode_pipeline_scan(f"--file {file_path}")
 
     # Run the Agent-based scanner
-    print(f"Running Veracode agent-based scan on: {directory}")
+    logging.info(f"Running Veracode agent-based scan on: {directory}")
     # print(get_srcclr_agents("8439ffc7-53e4-438b-93d5-8132af8b770e"))
     # print(
     #     regenerate_srcclr_token(

@@ -162,18 +162,37 @@ def setup_veracode_api_creds():
     print(f"Veracode API credentials set up at {creds_path}")
 
 
-def create_agent(agent_name):
+def create_srcclr_agent(workspace_id, agent_name):
     """
     Create a new agent in the Veracode SourceClear platform
     """
-    url = f"{SRCCLR_API_BASE_URL}/agents"
-    payload = {"name": agent_name}
+    url = f"{SRCCLR_API_BASE_URL}/workspaces/{workspace_id}/agents"
+    payload = {"agent_type": "CLI", "name": agent_name}
     response = requests.post(
         url, json=payload, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
     )
-    if response.status_code == 201:
+    if response.status_code == 200:
         print("Agent created successfully.")
-        return response.json()
+        agent = response.json()
+        token = agent.get("access_token")
+        if token:
+            os.environ["SRCCLR_API_TOKEN"] = token
+            print("SRCCLR_API_TOKEN environment variable set.")
+
+            # Create or update agent.yml in .srcclr directory
+            srcclr_dir = os.path.join(os.path.expanduser("~"), ".srcclr")
+            os.makedirs(srcclr_dir, exist_ok=True)
+            agent_yml_path = os.path.join(srcclr_dir, "agent.yml")
+
+            agent_data = f"agentAuthorization: {token}\n"
+
+            with open(agent_yml_path, "w") as agent_yml_file:
+                agent_yml_file.write(agent_data)
+
+            os.chmod(agent_yml_path, 0o600)
+
+            print("agent.yml file updated with the new token.")
+        return agent.get("id")
     else:
         print(
             f"Failed to create agent. Status code: {response.status_code}, Response: {response.text}"
@@ -181,7 +200,49 @@ def create_agent(agent_name):
         return None
 
 
-def create_token(agent_id):
+# How can I use teams to only get the workspaces for a specific user?
+# TODO: think about if I need to set this at the beginning or everytime the script runs
+# If I set the env varible it will only be that for script, I could set the agent.yml in .srcclr
+def setup_srcclr_workspace():
+    """
+    Get the srcclr_workspace ID from the .srcclr/setup file or retrieve it from the API if not present
+    """
+    srcclr_dir = os.path.join(TEMP_DIR, ".srcclr")
+    setup_file = os.path.join(srcclr_dir, "setup")
+
+    # Check if the setup file exists and contains the workspace ID
+    if os.path.exists(setup_file):
+        with open(setup_file, "r") as file:
+            for line in file:
+                if line.startswith("srcclr_workspace ="):
+                    return line.split("=")[1].strip()
+
+    # If the workspace ID is not found in the setup file, retrieve it from the API
+    print("srcclr_workspace ID not found in setup file. Retrieving from workspaces.")
+    url = f"{SRCCLR_API_BASE_URL}/workspaces"
+    response = requests.get(
+        url, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
+    )
+    if response.status_code == 200:
+        workspaces = response.json().get("_embedded", {}).get("workspaces", [])
+        for workspace in workspaces:
+            if workspace["name"] == "My Workspace":
+                workspace_id = workspace["id"]
+                os.makedirs(srcclr_dir, exist_ok=True)
+                with open(setup_file, "a") as file:
+                    file.write(f"srcclr_workspace = {workspace_id}\n")
+                print(f"Workspace ID written to setup file.")
+                return workspace_id
+        print("Workspace 'My Workspace' not found.")
+        return None
+    else:
+        print(
+            f"Failed to retrieve workspaces. Status code: {response.status_code}, Response: {response.text}"
+        )
+        return None
+
+
+def create_srcclr_token(agent_id):
     """
     Create a new token for the agent in the Veracode SourceClear platform
     """
@@ -200,21 +261,100 @@ def create_token(agent_id):
         return None
 
 
-def setup_srcclr_agent_and_token(agent_name):
+def setup_srcclr_agent(workspace_id):
     """
-    Set up the SourceClear agent and token
+    Get the srcclr_agent ID from the .srcclr/setup file or retrieve it from the API if not present
     """
-    agent = create_agent(agent_name)
-    if agent:
-        agent_id = agent.get("id")
-        token = create_token(agent_id)
+    srcclr_dir = os.path.join(TEMP_DIR, ".srcclr")
+    setup_file = os.path.join(srcclr_dir, "setup")
+
+    # Check if the setup file exists and contains the agent ID
+    if os.path.exists(setup_file):
+        with open(setup_file, "r") as file:
+            for line in file:
+                if line.startswith("srcclr_agent ="):
+                    return line.split("=")[1].strip()
+
+    # If the agent ID is not found in the setup file, retrieve it from the API
+    print("srcclr_agent ID not found in setup file. Retrieving from API.")
+
+    url = f"{SRCCLR_API_BASE_URL}/workspaces/{workspace_id}/agents"
+    response = requests.get(
+        url, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
+    )
+    if response.status_code == 200:
+        agents = response.json().get("_embedded", {}).get("agents", [])
+        for agent in agents:
+            if agent["name"].lower() == "cli":
+                agent_id = agent["id"]
+                os.makedirs(srcclr_dir, exist_ok=True)
+                with open(setup_file, "a") as file:
+                    file.write(f"srcclr_agent = {agent_id}\n")
+                print(f"Agent ID written to setup file.")
+                return agent_id
+
+        # If no existing agent is found, create a new agent
+        print("No existing agent found. Creating a new agent named 'CLI'.")
+        return create_srcclr_agent(workspace_id, "CLI")
+    print("Issue setting up agent.")
+    return None
+
+
+def regenerate_srcclr_token(workspace_id, agent_id):
+    """
+    Regenerate a token for the agent in the Veracode SourceClear platform
+    """
+    url = f"{SRCCLR_API_BASE_URL}/workspaces/{workspace_id}/agents/{agent_id}/token:regenerate"
+    response = requests.post(
+        url, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
+    )
+    if response.status_code == 200:
+        print("Token regenerated successfully.")
+        token = response.json().get("access_token")
         if token:
-            print(f"Agent ID: {agent_id}")
-            print(f"Token: {token.get('token')}")
-        else:
-            print("Failed to create token.")
+            os.environ["SRCCLR_API_TOKEN"] = token
+            print("SRCCLR_API_TOKEN environment variable set.")
+
+            # Create or update agent.yml in .srcclr directory
+            srcclr_dir = os.path.join(os.path.expanduser("~"), ".srcclr")
+            os.makedirs(srcclr_dir, exist_ok=True)
+            agent_yml_path = os.path.join(srcclr_dir, "agent.yml")
+
+            agent_data = f"agentAuthorization: {token}\n"
+
+            with open(agent_yml_path, "w") as agent_yml_file:
+                agent_yml_file.write(agent_data)
+
+            os.chmod(agent_yml_path, 0o600)
+
+            print("agent.yml file updated with the new token.")
+        return
     else:
-        print("Failed to create agent.")
+        print(
+            f"Failed to regenerate token. Status code: {response.status_code}, Response: {response.text}"
+        )
+        return
+
+
+def setup_srcclr_agent_and_token():
+    """
+    Set up the srcclr agent and token
+    """
+    workspace_id = setup_srcclr_workspace()
+
+    if not workspace_id:
+        print("Workspace ID was not found or setup incorrectly.")
+        return
+
+    agent_id = setup_srcclr_agent(workspace_id)
+
+    if not agent_id:
+        print("Agent ID was not found or setup incorrectly.")
+        return
+
+    regenerate_srcclr_token(workspace_id, agent_id)
+    # Add something to check if the token is expired and regenerate it
+    return
 
 
 def process_directory(directory):
@@ -325,9 +465,8 @@ def locate_veracode_cli():
     """
     Locate the Veracode CLI script in the temporary directory
     """
-    base_dir = os.path.join(
-        os.path.expanduser("~"), ".veracode_tmp", "veracode-cli-latest"
-    )
+    base_dir = os.path.join(TEMP_DIR, "veracode-cli-latest")
+    print(base_dir)
     for root, dirs, files in os.walk(base_dir):
         for file in files:
             if file == "veracode":
@@ -351,6 +490,36 @@ def veracode_cli(command):
         print(f"Error: {result.stderr}")
 
 
+def locate_srcclr():
+    """
+    Locate the Veracode SCA agent JAR and JRE in the temporary directory
+    """
+    base_dir = os.path.join(TEMP_DIR, "srcclr-latest")
+    for root, dirs, files in os.walk(base_dir):
+        for file in files:
+            if file.startswith("srcclr-") and file.endswith(".jar"):
+                jre_path = os.path.join(root, "jre", "bin", "java")
+                if os.path.exists(jre_path):
+                    return os.path.join(root, file), jre_path
+    raise FileNotFoundError(
+        "Veracode SCA agent JAR or JRE not found. Please ensure they are downloaded and set up correctly."
+    )
+
+
+def srcclr_scan(directory):
+    """
+    Run the Veracode SCA agent scan command
+    """
+    srcclr_path, jre_path = locate_srcclr()
+    srcclr_scan_command = f"{jre_path} -jar {srcclr_path} scan {directory} --no-upload"
+
+    result = subprocess.run(srcclr_scan_command.split(), capture_output=True, text=True)
+    if result.returncode == 0:
+        print(result.stdout)
+    else:
+        print(f"Error running srcclr: {result.stderr}")
+
+
 def scan_dir(directory):
     """
     Scan the given directory
@@ -358,27 +527,42 @@ def scan_dir(directory):
     print(f"Scanning directory: {directory}")
 
     # Create the output directory for autopackager
-    package_output_dir = os.path.join(
-        os.path.expanduser("~"), ".veracode_tmp", "packages"
-    )
+    package_output_dir = os.path.join(TEMP_DIR, "packages")
     os.makedirs(package_output_dir, exist_ok=True)
 
     # Define the package name
     package_name = os.path.basename(os.path.normpath(directory))
     package_path = os.path.join(package_output_dir, package_name)
 
-    # Run the Veracode CLI tool to autopackage the directory
+    # # Run the Veracode CLI tool to autopackage the directory
     # veracode_cli(
     #     f"package --source {directory} --type directory --trust --output {package_path}"
     # )
 
-    # Run the Veracode pipeline scanner
-    veracode_pipeline_scan(f"--file {package_path}")
+    # # Iterate over each file in the package_path directory and run the Veracode pipeline scanner
+    # for root, dirs, files in os.walk(package_path):
+    #     for file in files:
+    #         file_path = os.path.join(root, file)
+    #         print(f"Running Veracode pipeline scan on: {file_path}")
+    #         veracode_pipeline_scan(f"--file {file_path}")
 
     # Run the Agent-based scanner
-    # Add your agent-based scanner logic here
+    print(f"Running Veracode agent-based scan on: {directory}")
+    # print(get_srcclr_agents("8439ffc7-53e4-438b-93d5-8132af8b770e"))
+    # print(
+    #     regenerate_srcclr_token(
+    #         "593aa76d-998c-4981-9ab1-ba0df1435ca9",
+    #         "8439ffc7-53e4-438b-93d5-8132af8b770e",
+    #     )
+    # )
+    # regenerate_srcclr_token(
+    #     "593aa76d-998c-4981-9ab1-ba0df1435ca9",
+    #     "8439ffc7-53e4-438b-93d5-8132af8b770e",
+    # )
 
-    print(f"Autopackaged directory: {directory} to {package_path}")
+    # setup_veracode_api_creds()
+    setup_srcclr_agent_and_token()
+    srcclr_scan(directory)
 
 
 def main():

@@ -1,13 +1,12 @@
 import argparse
 import os
-import sys
 import requests
-import tarfile
 import zipfile
-import platform
 import subprocess
+import shutil
 import logging
 import logging.handlers
+
 
 from veracode_api_signing.plugin_requests import RequestsAuthPluginVeracodeHMAC
 
@@ -20,30 +19,17 @@ VERACODE_PIPELINE_SCANNER_URL = (
 )
 SRCCLR_API_BASE_URL = "https://api.veracode.com/srcclr/v3"
 
-# Set up logging
-log_dir = os.path.join(TEMP_DIR, "logs")
-os.makedirs(log_dir, exist_ok=True)
-log_file = os.path.join(log_dir, "veracode_pipeline_scan.log")
-rootLogger = logging.getLogger()
-# Write log in both console as well file
+# Configure logging
+log_file = "veracode_wrapper_cli.log"
+logging.basicConfig(
+    level=logging.INFO,  # change this to Warning, add a flag to change this to info when verbose
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+)
 
-fileHandler = logging.FileHandler(log_file)
-
-logFormatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-fileHandler.setFormatter(logFormatter)
-rootLogger.addHandler(fileHandler)
-
-consoleHandler = logging.StreamHandler(sys.stdout)
-consoleHandler.setFormatter(logFormatter)
-rootLogger.addHandler(consoleHandler)
-rootLogger.setLevel(logging.DEBUG)
-
-
-# logging.basicConfig(
-#     filename=log_file,
-#     level=logging.INFO,
-#     format="%(asctime)s - %(levelname)s - %(message)s",
-# )
+# Suppress debug logs from requests and urllib3
+logging.getLogger("requests").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 def get_headers():
@@ -112,7 +98,9 @@ def download_and_setup_veracode_cli():
     """
     Download and setup the Veracode CLI tool
     """
-    logging.info("Setting up Veracode CLI tool using local veracode_cli_install.sh script...")
+    logging.info(
+        "Setting up Veracode CLI tool using local veracode_cli_install.sh script..."
+    )
     install_script_path = os.path.join(
         os.path.dirname(__file__), "veracode_cli_install.sh"
     )
@@ -120,7 +108,9 @@ def download_and_setup_veracode_cli():
     try:
         # Ensure the script exists
         if not os.path.exists(install_script_path):
-            logging.info(f"veracode_cli_install.sh script not found at {install_script_path}")
+            logging.info(
+                f"veracode_cli_install.sh script not found at {install_script_path}"
+            )
             return
 
         # Make the script executable
@@ -142,7 +132,9 @@ def validate_setup():
     creds_path = os.path.join(os.path.expanduser("~"), ".veracode", "credentials")
 
     if not os.path.exists(creds_path):
-        logging.info("Veracode API credentials not found. Please set up the credentials.")
+        logging.info(
+            "Veracode API credentials not found. Please set up the credentials."
+        )
         setup_veracode_api_creds()
 
     # Send a simple API request to Veracode to validate credentials
@@ -183,7 +175,7 @@ def create_srcclr_agent(workspace_id, agent_name):
     """
     Create a new agent in the Veracode SourceClear platform
     """
-    
+
     url = f"{SRCCLR_API_BASE_URL}/workspaces/{workspace_id}/agents"
     payload = {"agent_type": "CLI", "name": agent_name}
     response = requests.post(
@@ -236,7 +228,9 @@ def setup_srcclr_workspace():
                     return line.split("=")[1].strip()
 
     # If the workspace ID is not found in the setup file, retrieve it from the API
-    logging.info("srcclr_workspace ID not found in setup file. Retrieving from workspaces.")
+    logging.info(
+        "srcclr_workspace ID not found in setup file. Retrieving from workspaces."
+    )
     url = f"{SRCCLR_API_BASE_URL}/workspaces?filter%5Bworkspace%5D=My%20Workspace"
     response = requests.get(
         url, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
@@ -337,7 +331,7 @@ def regenerate_srcclr_token(workspace_id, agent_id):
             srcclr_dir = os.path.join(os.path.expanduser("~"), ".srcclr")
             os.makedirs(srcclr_dir, exist_ok=True)
             agent_yml_path = os.path.join(srcclr_dir, "agent.yml")
-           
+
             agent_data = f"agentAuthorization: {token}\n"
 
             with open(agent_yml_path, "w") as agent_yml_file:
@@ -370,7 +364,7 @@ def setup_srcclr_agent_and_token():
         logging.info("Agent ID was not found or setup incorrectly.")
         return
 
-    regenerate_srcclr_token(workspace_id, agent_id)
+    # regenerate_srcclr_token(workspace_id, agent_id)
     # Add something to check if the token is expired and regenerate it
     return
 
@@ -427,7 +421,7 @@ def locate_pipeline_scan():
     )
 
 
-def veracode_pipeline_scan(command):
+def veracode_pipeline_scan(directory, file_path):
     """
     Run the Veracode Pipeline Scanner command
     """
@@ -466,17 +460,56 @@ def veracode_pipeline_scan(command):
     pipeline_scan_path = locate_pipeline_scan()
     logging.info(f"Located pipeline-scan.jar at: {pipeline_scan_path}")
 
-    # Run the pipeline scan command
-    result = subprocess.run(
-        ["java", "-jar", pipeline_scan_path] + command.split(),
-        capture_output=True,
-        text=True,
+    # Create scan_results directory within the temp directory
+    scan_results_dir = os.path.join(
+        TEMP_DIR, "scan_results", os.path.basename(directory)
     )
-    if result.returncode == 0:
-        logging.info("Pipeline scan completed successfully.")
-        logging.info(result.stdout)
+    os.makedirs(scan_results_dir, exist_ok=True)
+
+    # Update the output file name to be file_path_sast_results.json
+    base_name = os.path.basename(file_path)
+    name_without_ext = os.path.splitext(base_name)[0]
+    json_output_path = os.path.join(scan_results_dir, f"{name_without_ext}.json")
+
+    # Run the Veracode Pipeline Scanner
+    scan_command = [
+        "java",
+        "-jar",
+        pipeline_scan_path,
+        "-f",
+        file_path,
+        "-jf",
+        f"{name_without_ext}.json",
+    ]
+
+    result = subprocess.run(scan_command, capture_output=True, text=True)
+    logging.info(
+        result.stdout
+    )  # Do we need this? Look into why we are getting the error from scanning the packaged file
+    if result.returncode != 255:
+
+        # Move the JSON output file to the scan_results_dir
+        src_json_path = os.path.join(os.getcwd(), f"{name_without_ext}.json")
+        try:
+            shutil.move(src_json_path, json_output_path)
+        except Exception as e:
+            logging.error(f"Failed to move JSON output file: {e}")
+
+        # Delete the filtered_results.json file if it exists
+        # TODO: look into filtering on Very High ?
+        filtered_results_path = os.path.join(os.getcwd(), "filtered_results.json")
+        if os.path.exists(filtered_results_path):
+            try:
+                os.remove(filtered_results_path)
+            except Exception as e:
+                logging.error(f"Failed to delete filtered_results.json file: {e}")
+
+        logging.info(
+            f"Veracode Pipeline Scanner completed successfully - results can be found {json_output_path}."
+        )
+
     else:
-        logging.error(f"Pipeline scan failed with error: {result.stderr}")
+        logging.error(f"Error running Veracode Pipeline Scanner for {file_path}.")
 
 
 def locate_veracode_cli():
@@ -484,7 +517,7 @@ def locate_veracode_cli():
     Locate the Veracode CLI script in the temporary directory
     """
     base_dir = os.path.join(TEMP_DIR, "veracode-cli-latest")
-    logging.info(base_dir)
+    logging.info(f"Veracode CLI tool found - {base_dir}")
     for root, dirs, files in os.walk(base_dir):
         for file in files:
             if file == "veracode":
@@ -502,10 +535,13 @@ def veracode_cli(command):
     result = subprocess.run(
         [veracode_cli_path] + command.split(), capture_output=True, text=True
     )
+    logging.info(f"Running Veracode CLI command: {command}")
     if result.returncode == 0:
-        logging.info(result.stdout)
+        logging.info("Veracode CLI command completed successfully.")
+        return
     else:
         logging.info(f"Error: {result.stderr}")
+        return
 
 
 def locate_srcclr():
@@ -535,13 +571,46 @@ def srcclr_scan(directory):
     Run the Veracode SCA agent scan command
     """
     srcclr_path = locate_srcclr()
-    srcclr_scan_command = f"{srcclr_path} scan {directory} --no-upload"
+    # Create scan_results directory within the temp directory
+    scan_results_dir = os.path.join(
+        TEMP_DIR, "scan_results", os.path.basename(directory)
+    )
+    os.makedirs(scan_results_dir, exist_ok=True)
+    json_output_path = os.path.join(scan_results_dir, "sca_results.json")
+
+    srcclr_scan_command = (
+        f"{srcclr_path} scan {directory} --no-upload --json {json_output_path}"
+    )
     logging.info(srcclr_scan_command)
     result = subprocess.run(srcclr_scan_command.split(), capture_output=True, text=True)
     if result.returncode == 0:
         logging.info(result.stdout)
     else:
         logging.info(f"Error running srcclr: {result.stderr}")
+
+
+def grab_projects():
+    """
+    Retrieve projects from the Veracode SourceClear platform for a given workspace ID
+    """
+    workspace_id = setup_srcclr_workspace()
+    if not workspace_id:
+        print("Workspace ID not found.")
+        return None
+
+    print(workspace_id)
+
+    url = f"{SRCCLR_API_BASE_URL}/workspaces/{workspace_id}"
+    response = requests.delete(
+        url, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
+    )
+    if response.status_code == 200:
+        print(response.json())
+    else:
+        print(
+            f"Failed to retrieve projects. Status code: {response.status_code}, Response: {response.text}"
+        )
+        return None
 
 
 def scan_dir(directory):
@@ -559,34 +628,34 @@ def scan_dir(directory):
     package_path = os.path.join(package_output_dir, package_name)
 
     # Run the Veracode CLI tool to autopackage the directory
-    # veracode_cli(
-    #     f"package --source {directory} --type directory --trust --output {package_path}"
-    # )
+    veracode_cli(
+        f"package --source {directory} --type directory --trust --output {package_path}"
+    )
 
-    # # Iterate over each file in the package_path directory and run the Veracode pipeline scanner
-    # for root, dirs, files in os.walk(package_path):
-    #     for file in files:
-    #         file_path = os.path.join(root, file)
-    #         logging.info(f"Running Veracode pipeline scan on: {file_path}")
-    #         veracode_pipeline_scan(f"--file {file_path}")
+    # Iterate over each file in the package_path directory and run the Veracode pipeline scanner
+    for root, dirs, files in os.walk(package_path):
+        for file in files:
+            # Skip hidden files
+            if file.startswith("."):
+                logging.info(f"Skipping hidden file: {file}")
+                continue
 
-    # Run the Agent-based scanner
-    logging.info(f"Running Veracode agent-based scan on: {directory}")
-    # logging.info(get_srcclr_agents("8439ffc7-53e4-438b-93d5-8132af8b770e"))
-    # logging.info(
-    #     regenerate_srcclr_token(
-    #         "593aa76d-998c-4981-9ab1-ba0df1435ca9",
-    #         "8439ffc7-53e4-438b-93d5-8132af8b770e",
-    #     )
-    # )
-    # regenerate_srcclr_token(
-    #     "593aa76d-998c-4981-9ab1-ba0df1435ca9",
-    #     "8439ffc7-53e4-438b-93d5-8132af8b770e",
-    # )
+            file_path = os.path.join(root, file)
+            logging.info(
+                f"Kicking off SAST Scan - Veracode pipeline scan on: {file_path}"
+            )
+            veracode_pipeline_scan(directory, file_path)
 
-    # setup_veracode_api_creds()
-    setup_srcclr_agent_and_token()
-    srcclr_scan(directory)
+    # # Set up the Veracode SCA agent and token
+    # setup_srcclr_agent_and_token()
+
+    # # Run the Veracode SCA agent scan
+    # logging.info(f"Running Veracode agent-based scan on: {directory}")
+    # # Run srcclr_scan and handle any errors
+    # try:
+    #     srcclr_scan(directory)
+    # except Exception as e:
+    #     logging.error(f"srcclr_scan failed: {e}")
 
 
 def main():
@@ -629,7 +698,6 @@ def main():
 
     # Process the directory, URL, or artifact
     if args.dir:
-        logging.info(f"Processing directory: {args.dir}")
         scan_dir(args.dir)
     elif args.url:
         logging.info(f"Processing URL: {args.url}")

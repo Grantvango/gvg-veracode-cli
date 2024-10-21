@@ -7,36 +7,8 @@ import shutil
 import logging
 import logging.handlers
 
-
 from veracode_api_signing.plugin_requests import RequestsAuthPluginVeracodeHMAC
-
-# Set the environment variable for the temporary folder
-TEMP_DIR = os.path.join(os.path.expanduser("~"), ".veracode_tmp")
-os.makedirs(TEMP_DIR, exist_ok=True)
-
-VERACODE_PIPELINE_SCANNER_URL = (
-    "https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip"
-)
-SRCCLR_API_BASE_URL = "https://api.veracode.com/srcclr/v3"
-
-# Configure logging
-log_file = "veracode_wrapper_cli.log"
-logging.basicConfig(
-    level=logging.INFO,  # change this to Warning, add a flag to change this to info when verbose
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
-)
-
-# Suppress debug logs from requests and urllib3
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-
-
-def get_headers():
-    """
-    Get the headers for the API request
-    """
-    return {"Content-Type": "application/json"}
+from veracode_cli.commons import TEMP_DIR, get_headers
 
 
 def download_and_setup_srcclr():

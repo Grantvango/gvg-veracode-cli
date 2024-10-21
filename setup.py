@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 
 # Function to read the requirements from requirements.txt
@@ -9,10 +9,9 @@ def read_requirements():
 
 # Setup the package
 setup(
-    name="veracode-wrapper",
+    name="veracode-cli",
     version="0.1.0",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
+    package_dir={"": "veracode_cli"},
     install_requires=read_requirements(),
     author="GVG",
     author_email="gvgpython@gmail.com",
@@ -26,4 +25,5 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
+    license="GPL-3.0",
 )

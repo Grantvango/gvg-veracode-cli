@@ -59,16 +59,16 @@ def scan_dir(directory):
             if os.path.exists(f"sast_results_{base_file}.json"):
                 parse_sast_results(f"sast_results_{base_file}.json", output_path)
 
-    # # Set up the Veracode SCA agent and token
-    # setup_srcclr_agent_and_token()
+    # Set up the Veracode SCA agent and token
+    Srcclr().setup_srcclr_agent_and_token()
 
-    # # Run the Veracode SCA agent scan
-    # logging.info(f"Running Veracode agent-based scan on: {directory}")
-    # # Run srcclr_scan and handle any errors
-    # try:
-    #     srcclr_scan(directory)
-    # except Exception as e:
-    #     logging.error(f"srcclr_scan failed: {e}")
+    # Run the Veracode SCA agent scan
+    logging.info(f"Running Veracode agent-based scan on: {directory}")
+    # Run srcclr_scan and handle any errors
+    try:
+        Srcclr().srcclr_scan(directory)
+    except Exception as e:
+        logging.error(f"srcclr_scan failed: {e}")
 
 
 def main():

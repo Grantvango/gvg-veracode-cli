@@ -6,7 +6,7 @@
          "templated": false
       },
       "self": {
-         "href": "/scans/b0be670d-e3cf-4e05-b42b-975be915697c/findings",
+         "href": "/scans/2ee8b493-8ae5-4de0-b587-d27e888e0a90/findings",
          "name": "",
          "templated": false
       },
@@ -41,7 +41,7 @@
          "templated": false
       }
    },
-   "scan_id": "b0be670d-e3cf-4e05-b42b-975be915697c",
+   "scan_id": "2ee8b493-8ae5-4de0-b587-d27e888e0a90",
    "scan_status": "SUCCESS",
    "message": "Scan successful. Results size: 1078 bytes",
    "modules": [

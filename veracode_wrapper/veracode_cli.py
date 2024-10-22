@@ -1,6 +1,7 @@
 import os
 import subprocess
 import logging
+import platform
 
 from veracode_wrapper.utils import TEMP_DIR
 
@@ -13,12 +14,23 @@ class VeracodeCLI:
         """
         Download and setup the Veracode CLI tool
         """
-        logging.info(
-            "Setting up Veracode CLI tool using local veracode_cli_install.sh script..."
-        )
-        install_script_path = os.path.join(
-            os.path.dirname(__file__), "..", "scripts", "veracode_cli_install.sh"
-        )
+        system = platform.system()
+        if system == "Windows":
+            logging.info(
+                "Setting up Veracode CLI tool using local veracode_cli_install.ps1 script..."
+            )
+            install_script_path = os.path.join(
+                os.path.dirname(__file__), "..", "scripts", "veracode_cli_install.ps1"
+            )
+            command = ["powershell", "-File", install_script_path]
+        else:
+            logging.info(
+                "Setting up Veracode CLI tool using local veracode_cli_install.sh script..."
+            )
+            install_script_path = os.path.join(
+                os.path.dirname(__file__), "..", "scripts", "veracode_cli_install.sh"
+            )
+            command = ["bash", install_script_path]
 
         try:
             # Ensure the script exists

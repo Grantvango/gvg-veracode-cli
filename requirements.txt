@@ -1,4 +1,7 @@
-Requests==2.32.3
+PyYAML==6.0.2
+requests==2.32.3
+veracode-api-signing==22.3.0
 setuptools==68.1.2
-veracode_api_signing=22.3.0
+
+
 

@@ -167,7 +167,7 @@ fi
 # fi
 
 # Use .veracode_tmp directory for extraction
-VERACODE_TMP_DIR="${HOME}/.veracode_tmp"
+VERACODE_TMP_DIR="${HOME}/.veracode_wrapper"
 CLI_EXTRACTION_DIR="${VERACODE_TMP_DIR}/veracode-cli-latest"
 mkdir -p "${CLI_EXTRACTION_DIR}"
 

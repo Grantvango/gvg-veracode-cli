@@ -123,7 +123,7 @@ if [ "$?" -ne 0 ] ; then
 fi
 
 # Use .veracode_tmp directory for extraction
-VERACODE_TMP_DIR="${HOME}/.veracode_tmp"
+VERACODE_TMP_DIR="${HOME}/.veracode_wrapper"
 EXTRACTION_DIR="${VERACODE_TMP_DIR}/srcclr-latest"
 mkdir -p "${EXTRACTION_DIR}"
 

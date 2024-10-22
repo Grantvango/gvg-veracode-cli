@@ -24,6 +24,11 @@ setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent",
     ],
+    entry_points={
+        "console_scripts": [
+            "veracode-cli=veracode_cli.main:main",
+        ],
+    },
     python_requires=">=3.6",
     license="GPL-3.0",
 )

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>TD Bank SAST and SCA Results Report</title>
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				background-color: #f4f4f4;
+				color: #333;
+			}
+			.header {
+				background-color: #00743e; /* TD Bank green */
+				color: white;
+				padding: 20px;
+				text-align: center;
+			}
+			.header img {
+				max-height: 50px;
+			}
+			.content {
+				padding: 20px;
+			}
+			table {
+				width: 100%;
+				border-collapse: separate;
+				border-spacing: 0;
+				margin-bottom: 20px;
+				border: 1px solid #ddd;
+				border-radius: 10px;
+				overflow: hidden;
+			}
+			th,
+			td {
+				border: 1px solid #ddd;
+				padding: 8px;
+			}
+			th {
+				background-color: #00743e; /* TD Bank green */
+				color: white;
+			}
+			tr:nth-child(even) {
+				background-color: #f2f2f2;
+			}
+			tr:hover {
+				background-color: #ddd;
+			}
+			th:first-child {
+				border-top-left-radius: 10px;
+			}
+			th:last-child {
+				border-top-right-radius: 10px;
+			}
+			tr:last-child td:first-child {
+				border-bottom-left-radius: 10px;
+			}
+			tr:last-child td:last-child {
+				border-bottom-right-radius: 10px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="header">
+			<h1>SAST and SCA Results Report</h1>
+		</div>
+		<div class="content">
+			<h2>SAST Findings</h2>
+			<table>
+				<tr>
+					<th>Title</th>
+					<th>Issue ID</th>
+					<th>Severity</th>
+					<th>Issue Type</th>
+					<th>CWE ID</th>
+					<th>Description</th>
+					<th>File</th>
+					<th>Line</th>
+					<th>Function Name</th>
+				</tr>
+				<!-- SAST Findings will be inserted here -->
+				<tbody id="sast-findings"></tbody>
+			</table>
+			<h2>SCA Records</h2>
+			<table>
+				<tr>
+					<th>Name</th>
+					<th>Description</th>
+					<th>Author</th>
+					<th>Language</th>
+					<th>Coordinate</th>
+					<th>Latest Release</th>
+					<th>Latest Release Date</th>
+					<th>Recommended Version</th>
+				</tr>
+				<!-- SCA Records will be inserted here -->
+				<tbody id="sca-records"></tbody>
+			</table>
+		</div>
+	</body>
+</html>

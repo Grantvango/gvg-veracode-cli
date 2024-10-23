@@ -16,7 +16,7 @@ class VeracodeCLI:
         """
         system = platform.system()
         if system == "Windows":
-            logging.info(
+            logging.debug(
                 "Setting up Veracode CLI tool using local veracode_cli_install.ps1 script..."
             )
             install_script_path = os.path.join(
@@ -24,7 +24,7 @@ class VeracodeCLI:
             )
             command = ["powershell", "-File", install_script_path]
         else:
-            logging.info(
+            logging.debug(
                 "Setting up Veracode CLI tool using local veracode_cli_install.sh script..."
             )
             install_script_path = os.path.join(
@@ -35,7 +35,7 @@ class VeracodeCLI:
         try:
             # Ensure the script exists
             if not os.path.exists(install_script_path):
-                logging.info(
+                logging.debug(
                     f"veracode_cli_install.sh script not found at {install_script_path}"
                 )
                 return
@@ -45,9 +45,9 @@ class VeracodeCLI:
 
             # Execute the local install.sh script
             subprocess.run(f"{install_script_path}", shell=True, check=True)
-            logging.info("Veracode CLI tool is set up successfully.")
+            logging.debug("Veracode CLI tool is set up successfully.")
         except subprocess.CalledProcessError as e:
-            logging.info(
+            logging.debug(
                 f"Failed to run local veracode_cli_install.sh script for Veracode CLI tool. Error: {e}"
             )
 
@@ -56,7 +56,7 @@ class VeracodeCLI:
         Locate the Veracode CLI script in the temporary directory
         """
         base_dir = os.path.join(TEMP_DIR, "veracode-cli-latest")
-        logging.info(f"Veracode CLI tool found - {base_dir}")
+        logging.debug(f"Veracode CLI tool found - {base_dir}")
         for root, dirs, files in os.walk(base_dir):
             for file in files:
                 if file == "veracode":
@@ -73,10 +73,10 @@ class VeracodeCLI:
         result = subprocess.run(
             [veracode_cli_path] + command.split(), capture_output=True, text=True
         )
-        logging.info(f"Running Veracode CLI command: {command}")
+        logging.debug(f"Running Veracode CLI command: {command}")
         if result.returncode == 0:
-            logging.info("Veracode CLI command completed successfully.")
+            logging.debug("Veracode CLI command completed successfully.")
             return
         else:
-            logging.info(f"Error: \n\n{result.stdout}")
+            logging.debug(f"Error: \n\n{result.stdout}")
             return

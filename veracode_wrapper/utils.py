@@ -43,7 +43,7 @@ def cleanup_temp_dir():
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
         os.rmdir(TEMP_DIR)
-        logging.info(f"Cleaned up temporary directory: {TEMP_DIR}")
+        logging.debug(f"Cleaned up temporary directory: {TEMP_DIR}")
 
 
 def validate_setup():
@@ -53,7 +53,7 @@ def validate_setup():
     creds_path = os.path.join(os.path.expanduser("~"), ".veracode", "credentials")
 
     if not os.path.exists(creds_path):
-        logging.info(
+        logging.debug(
             "Veracode API credentials not found. Please set up the credentials."
         )
         setup_veracode_api_creds()
@@ -65,12 +65,12 @@ def validate_setup():
     )
 
     if response.status_code == 200:
-        logging.info(
+        logging.debug(
             "Validation complete. All tools are set up and Veracode API credentials are valid."
         )
         return True
     else:
-        logging.info(
+        logging.debug(
             f"Failed to validate Veracode API credentials. Status code: {response.status_code}, Response: {response.text}"
         )
         return False
@@ -89,61 +89,48 @@ def setup_veracode_api_creds():
         creds_file.write(
             f"[default]\nveracode_api_key_id = {api_id}\nveracode_api_key_secret = {api_key}\n"
         )
-    logging.info(f"Veracode API credentials set up at {creds_path}")
+    logging.debug(f"Veracode API credentials set up at {creds_path}")
 
     yaml_creds_path = os.path.join(os.path.expanduser("~"), ".veracode", "veracode.yml")
     os.makedirs(os.path.dirname(yaml_creds_path), exist_ok=True)
     creds_data = {"api": {"key-id": api_id, "key-secret": api_key}}
     with open(yaml_creds_path, "w") as yaml_creds_file:
         yaml.dump(creds_data, yaml_creds_file, default_flow_style=False)
-    logging.info(f"Veracode API credentials set up at {yaml_creds_path}")
+    logging.debug(f"Veracode API credentials set up at {yaml_creds_path}")
 
 
-def parse_sast_results(json_file_path, output_html_path):
+def parse_results(package_path, output_html_path):
     """
-    Parse the SAST results JSON file and create an HTML report for the findings
+    Parse the SAST and SCA results JSON files and create an HTML report for the findings
     """
-    with open(json_file_path, "r") as json_file:
-        data = json.load(json_file)
+    sast_findings = []
+    sca_records = []
 
-    findings = data.get("findings", [])
-    modules = data.get("modules", [])
+    # Iterate through the package_path directory to find JSON files
+    for root, dirs, files in os.walk(package_path):
+        for file in files:
+            if file.startswith("sast_results_") and file.endswith(".json"):
+                with open(os.path.join(root, file), "r") as json_file:
+                    data = json.load(json_file)
+                    sast_findings.extend(data.get("findings", []))
+            elif file == "sca_results.json":
+                with open(os.path.join(root, file), "r") as json_file:
+                    data = json.load(json_file)
+                    sca_records.extend(data.get("records", []))
 
-    html_content = """
-    <html>
-    <head>
-        <title>SAST Results Report</title>
-        <style>
-            body { font-family: Arial, sans-serif; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #ddd; padding: 8px; }
-            th { background-color: #f2f2f2; }
-        </style>
-    </head>
-    <body>
-        <h1>SAST Results Report</h1>
-    """
+    logging.debug(f"Found {len(sast_findings)} SAST findings.")
+    logging.debug(f"Found {len(sca_records)} SCA records.")
 
-    # Add modules as the title of the table
-    if modules:
-        html_content += f"<h2>{modules[0]}</h2>"
+    # Load the HTML template
+    template_path = os.path.join(
+        os.path.dirname(__file__), "..", "templates", "sast_sca_report_template.html"
+    )
+    with open(template_path, "r") as template_file:
+        html_content = template_file.read()
 
-    html_content += """
-        <table>
-            <tr>
-                <th>Title</th>
-                <th>Issue ID</th>
-                <th>Severity</th>
-                <th>Issue Type</th>
-                <th>CWE ID</th>
-                <th>Description</th>
-                <th>File</th>
-                <th>Line</th>
-                <th>Function Name</th>
-            </tr>
-    """
-
-    for finding in findings:
+    # Generate SAST findings rows
+    sast_findings_rows = ""
+    for finding in sast_findings:
         title = finding.get("title", "N/A")
         issue_id = finding.get("issue_id", "N/A")
         severity = finding.get("severity", "N/A")
@@ -155,7 +142,7 @@ def parse_sast_results(json_file_path, output_html_path):
         line = file_info.get("line", "N/A")
         function_name = file_info.get("function_name", "N/A")
 
-        html_content += f"""
+        sast_findings_rows += f"""
         <tr>
             <td>{title}</td>
             <td>{issue_id}</td>
@@ -169,13 +156,48 @@ def parse_sast_results(json_file_path, output_html_path):
         </tr>
         """
 
-    html_content += """
-        </table>
-    </body>
-    </html>
-    """
+    # Generate SCA records rows
+    sca_records_rows = ""
+    for record in sca_records:
+        for library in record.get("libraries", []):
+            name = library.get("name", "N/A")
+            description = library.get("description", "N/A")
+            author = library.get("author", "N/A")
+            language = library.get("language", "N/A")
+            coordinate1 = library.get("coordinate1", "N/A")
+            latest_release = library.get("latestRelease", "N/A")
+            latest_release_date = library.get("latestReleaseDate", "N/A")
+            recommended_version = library.get("recommendedVersion", "N/A")
 
+            sca_records_rows += f"""
+            <tr>
+                <td>{name}</td>
+                <td>{description}</td>
+                <td>{author}</td>
+                <td>{language}</td>
+                <td>{coordinate1}</td>
+                <td>{latest_release}</td>
+                <td>{latest_release_date}</td>
+                <td>{recommended_version}</td>
+            </tr>
+            """
+
+    # Insert SAST findings rows
+    html_content = html_content.replace(
+        "<!-- SAST Findings will be inserted here -->", sast_findings_rows
+    )
+
+    # Insert SCA records rows
+    html_content = html_content.replace(
+        "<!-- SCA Records will be inserted here -->", sca_records_rows
+    )
+
+    # Write the final HTML content to the output file
     with open(output_html_path, "w") as html_file:
         html_file.write(html_content)
 
-    logging.info(f"HTML report generated at {output_html_path}")
+    logging.debug(f"HTML report generated at {output_html_path}")
+
+
+# TODO: Add a function to clean up the temporary directory
+# TODO: Add a function to clean up package directories to make sure its scanning only artifacts from CLI auto package

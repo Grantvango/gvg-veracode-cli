@@ -59,6 +59,17 @@
 				border-bottom-right-radius: 10px;
 			}
 		</style>
+		<script>
+			function goToVeracodeLink(url) {
+				window.open(url, '_blank');
+			}
+
+			function goToCWERepo(cweId) {
+				const baseUrl = 'https://github.com/your-repo/cwe-md-files/';
+				const url = baseUrl + 'CWE-' + cweId + '.md';
+				window.open(url, '_blank');
+			}
+		</script>
 	</head>
 	<body>
 		<div class="header">

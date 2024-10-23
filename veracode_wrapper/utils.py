@@ -118,8 +118,8 @@ def parse_results(package_path, output_html_path):
                     data = json.load(json_file)
                     sca_records.extend(data.get("records", []))
 
-    logging.debug(f"Found {len(sast_findings)} SAST findings.")
-    logging.debug(f"Found {len(sca_records)} SCA records.")
+    logging.info(f"Found {len(sast_findings)} SAST findings.")
+    logging.info(f"Found {len(sca_records)} SCA records.")
 
     # Load the HTML template
     template_path = os.path.join(
@@ -143,7 +143,7 @@ def parse_results(package_path, output_html_path):
         function_name = file_info.get("function_name", "N/A")
 
         sast_findings_rows += f"""
-        <tr>
+        <tr onclick="goToCWERepo('{cwe_id}')">
             <td>{title}</td>
             <td>{issue_id}</td>
             <td>{severity}</td>
@@ -168,9 +168,10 @@ def parse_results(package_path, output_html_path):
             latest_release = library.get("latestRelease", "N/A")
             latest_release_date = library.get("latestReleaseDate", "N/A")
             recommended_version = library.get("recommendedVersion", "N/A")
+            veracode_link = library.get("_links", {}).get("html", "#")
 
             sca_records_rows += f"""
-            <tr>
+            <tr onclick="goToVeracodeLink('{veracode_link}')">
                 <td>{name}</td>
                 <td>{description}</td>
                 <td>{author}</td>
@@ -196,7 +197,7 @@ def parse_results(package_path, output_html_path):
     with open(output_html_path, "w") as html_file:
         html_file.write(html_content)
 
-    logging.debug(f"HTML report generated at {output_html_path}")
+    logging.info(f"HTML report generated at {output_html_path}")
 
 
 # TODO: Add a function to clean up the temporary directory

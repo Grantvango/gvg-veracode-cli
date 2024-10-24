@@ -102,7 +102,7 @@ def main():
     # Setup all tools and credentials
     if args.setup:
         # Download and set up all tools
-        # TODO: Add a way to skip this if already set up + using latest versions
+        # TODO: Add a way to skip this if already set up + using latest versions1
         veracode_cli = VeracodeCLI()
         veracode_cli.download_and_setup_veracode_cli()
 

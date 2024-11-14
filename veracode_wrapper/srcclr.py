@@ -297,6 +297,11 @@ class Srcclr:
         os.makedirs(scan_results_dir, exist_ok=True)
         json_output_path = os.path.join(scan_results_dir, "sca_results.json")
 
+        # Check if json_output_path exists and delete it if it does
+        if os.path.exists(json_output_path):
+            os.remove(json_output_path)
+            logging.debug(f"Deleted existing file at {json_output_path}")
+
         srcclr_scan_command = (
             f"{srcclr_path} scan {directory} --no-upload --json {json_output_path}"
         )

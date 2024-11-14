@@ -17,6 +17,8 @@ from veracode_wrapper.utils import (
 from veracode_wrapper.veracode_cli import VeracodeCLI
 from veracode_wrapper.srcclr import Srcclr
 
+# TODO: when installing this package, ask them if they want to install pre-commit hooks. Check if
+
 
 def scan_dir(directory):
     """
@@ -37,37 +39,37 @@ def scan_dir(directory):
     os.makedirs(scan_results_dir, exist_ok=True)
     output_report_path = os.path.join(scan_results_dir, "results.html")
 
-    # Run the Veracode CLI tool to autopackage the directory
-    VeracodeCLI().run_command(
-        f"package --source {directory} --type directory --trust --output {package_path}"
-    )
+    # # Run the Veracode CLI tool to autopackage the directory
+    # VeracodeCLI().run_command(
+    #     f"package --source {directory} --type directory --trust --output {package_path}"
+    # )
 
-    # Iterate over each file in the package_path directory and run the Veracode pipeline scanner
-    for root, dirs, files in os.walk(package_path):
-        for file in files:
-            # Skip hidden files
-            if file.startswith("."):
-                logging.debug(f"Skipping hidden file: {file}")
-                continue
+    # # Iterate over each file in the package_path directory and run the Veracode pipeline scanner
+    # for root, dirs, files in os.walk(package_path):
+    #     for file in files:
+    #         # Skip hidden files
+    #         if file.startswith("."):
+    #             logging.debug(f"Skipping hidden file: {file}")
+    #             continue
 
-            file_path = os.path.join(root, file)
-            base_file = os.path.splitext(os.path.basename(file_path))[0]
-            logging.info(f"Kicking off SAST scan on: {base_file}")
-            VeracodeCLI().run_command(
-                f"static scan {file_path} --results-file sast_results_{base_file}.json"
-            )
+    #         file_path = os.path.join(root, file)
+    #         base_file = os.path.splitext(os.path.basename(file_path))[0]
+    #         logging.info(f"Kicking off SAST scan on: {base_file}")
+    #         VeracodeCLI().run_command(
+    #             f"static scan {file_path} --results-file sast_results_{base_file}.json"
+    #         )
 
-            # Check if file exists
-            sast_results_path = f"sast_results_{base_file}.json"
-            if os.path.exists(sast_results_path):
-                # Move the JSON file to the package_path directory
-                new_sast_results_path = os.path.join(
-                    scan_results_dir, f"sast_results_{base_file}.json"
-                )
-                shutil.move(sast_results_path, new_sast_results_path)
-                logging.debug(f"Moved {sast_results_path} to {new_sast_results_path}")
-            else:
-                logging.debug(f"Failed to find {sast_results_path}")
+    #         # Check if file exists
+    #         sast_results_path = f"sast_results_{base_file}.json"
+    #         if os.path.exists(sast_results_path):
+    #             # Move the JSON file to the package_path directory
+    #             new_sast_results_path = os.path.join(
+    #                 scan_results_dir, f"sast_results_{base_file}.json"
+    #             )
+    #             shutil.move(sast_results_path, new_sast_results_path)
+    #             logging.debug(f"Moved {sast_results_path} to {new_sast_results_path}")
+    #         else:
+    #             logging.debug(f"Failed to find {sast_results_path}")
 
     # Set up the Veracode SCA agent and token
     srcclr = Srcclr()
@@ -102,7 +104,7 @@ def main():
     # Setup all tools and credentials
     if args.setup:
         # Download and set up all tools
-        # TODO: Add a way to skip this if already set up + using latest versions1
+        # TODO: Add a way to skip this if already set up + using latest versions
         veracode_cli = VeracodeCLI()
         veracode_cli.download_and_setup_veracode_cli()
 

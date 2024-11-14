@@ -4,6 +4,7 @@ import logging
 import requests
 import yaml
 import json
+from datetime import datetime
 
 from veracode_api_signing.plugin_requests import RequestsAuthPluginVeracodeHMAC
 
@@ -101,10 +102,12 @@ def setup_veracode_api_creds():
 
 def parse_results(package_path, output_html_path):
     """
-    Parse the SAST and SCA results JSON files and create an HTML report for the findings
+    Parse the SAST and SCA results JSON files and create an HTML report for the findings.
     """
+
     sast_findings = []
     sca_records = []
+    vulnerabilities = []
 
     # Iterate through the package_path directory to find JSON files
     for root, dirs, files in os.walk(package_path):
@@ -117,9 +120,12 @@ def parse_results(package_path, output_html_path):
                 with open(os.path.join(root, file), "r") as json_file:
                     data = json.load(json_file)
                     sca_records.extend(data.get("records", []))
+                    for record in data.get("records", []):
+                        vulnerabilities.extend(record.get("vulnerabilities", []))
 
     logging.info(f"Found {len(sast_findings)} SAST findings.")
     logging.info(f"Found {len(sca_records)} SCA records.")
+    logging.info(f"Found {len(vulnerabilities)} vulnerabilities.")
 
     # Load the HTML template
     template_path = os.path.join(
@@ -131,28 +137,69 @@ def parse_results(package_path, output_html_path):
     # Generate SAST findings rows
     sast_findings_rows = ""
     for finding in sast_findings:
-        title = finding.get("title", "N/A")
-        issue_id = finding.get("issue_id", "N/A")
-        severity = finding.get("severity", "N/A")
-        issue_type = finding.get("issue_type", "N/A")
         cwe_id = finding.get("cwe_id", "N/A")
+        issue_type = finding.get("issue_type", "N/A")
         description = finding.get("display_text", "N/A")
+        severity = finding.get("severity", "N/A")
         file_info = finding.get("files", {}).get("source_file", {})
         file = file_info.get("file", "N/A")
         line = file_info.get("line", "N/A")
         function_name = file_info.get("function_name", "N/A")
 
         sast_findings_rows += f"""
-        <tr onclick="goToCWERepo('{cwe_id}')">
-            <td>{title}</td>
-            <td>{issue_id}</td>
-            <td>{severity}</td>
-            <td>{issue_type}</td>
+        <tr>
             <td>{cwe_id}</td>
+            <td>{issue_type}</td>
             <td>{description}</td>
+            <td>{severity}</td>
             <td>{file}</td>
             <td>{line}</td>
             <td>{function_name}</td>
+        </tr>
+        """
+
+    # Generate vulnerabilities rows
+    vulnerabilities_rows = ""
+    for vulnerability in vulnerabilities:
+        cve = vulnerability.get("cve", "N/A")
+        title = vulnerability.get("title", "N/A")
+        overview = vulnerability.get("overview", "N/A")
+        language = vulnerability.get("language", "N/A")
+        cvss_score = vulnerability.get("cvssScore", "N/A")
+        cvss3_score = vulnerability.get("cvss3Score", "N/A")
+        cvss_vector = vulnerability.get("cvssVector", "N/A")
+        cvss3_vector = vulnerability.get("cvss3Vector", "N/A")
+        has_exploits = vulnerability.get("hasExploits", "N/A")
+        veracode_link = vulnerability.get("_links", {}).get("html", "#")
+        exploitability = vulnerability.get("exploitability", {})
+
+        vulnerabilities_rows += f"""
+        <tr>
+            <td><a href="{veracode_link}" target="_blank">{cve}</a></td>
+            <td>{title}</td>
+            <td>{overview}</td>
+            <td>{language}</td>
+            <td>{cvss_score}</td>
+            <td>{cvss3_score}</td>
+            <td>{cvss_vector}</td>
+            <td>{cvss3_vector}</td>
+            <td>{has_exploits}</td>
+            <td class="exploitability-cell">
+                <div class="epss-container">
+                    <button class="epss-button">EPSS Details</button>
+                    <div class="epss-details-dropdown">
+                        <strong>Service Status:</strong> {exploitability.get("exploitServiceStatus", "N/A")}<br>
+                        <strong>CVE Full:</strong> {exploitability.get("cveFull", "N/A")}<br>
+                        <strong>EPSS Status:</strong> {exploitability.get("epssStatus", "N/A")}<br>
+                        <strong>EPSS Score:</strong> {exploitability.get("epssScore", "N/A")}<br>
+                        <strong>EPSS Percentile:</strong> {exploitability.get("epssPercentile", "N/A")}<br>
+                        <strong>EPSS Score Date:</strong> {exploitability.get("epssScoreDate", "N/A")}<br>
+                        <strong>EPSS Model Version:</strong> {exploitability.get("epssModelVersion", "N/A")}<br>
+                        <strong>EPSS Citation:</strong> <a href="{exploitability.get("epssCitation", "#")}" target="_blank">{exploitability.get("epssCitation", "N/A")}</a><br>
+                        <strong>Exploit Observed:</strong> {exploitability.get("exploitObserved", "N/A")}
+                    </div>
+                </div>
+            </td>
         </tr>
         """
 
@@ -164,28 +211,41 @@ def parse_results(package_path, output_html_path):
             description = library.get("description", "N/A")
             author = library.get("author", "N/A")
             language = library.get("language", "N/A")
-            coordinate1 = library.get("coordinate1", "N/A")
             latest_release = library.get("latestRelease", "N/A")
             latest_release_date = library.get("latestReleaseDate", "N/A")
-            recommended_version = library.get("recommendedVersion", "N/A")
-            veracode_link = library.get("_links", {}).get("html", "#")
+            if latest_release_date != "N/A":
+                try:
+                    # Remove 'Z' if present and handle timezone offset
+                    if latest_release_date.endswith("Z"):
+                        latest_release_date = latest_release_date[:-1]
+                    latest_release_date = datetime.fromisoformat(
+                        latest_release_date
+                    ).strftime("%m/%d/%Y")
+                except ValueError:
+                    latest_release_date = "Invalid date"
+
+            code_repo_url = library.get("codeRepoUrl", library.get("authorUrl", "#"))
+            name_with_link = f'<a href="{code_repo_url}" target="_blank">{name}</a>'
 
             sca_records_rows += f"""
-            <tr onclick="goToVeracodeLink('{veracode_link}')">
-                <td>{name}</td>
+            <tr>
+                <td>{name_with_link}</td>
                 <td>{description}</td>
                 <td>{author}</td>
                 <td>{language}</td>
-                <td>{coordinate1}</td>
                 <td>{latest_release}</td>
                 <td>{latest_release_date}</td>
-                <td>{recommended_version}</td>
             </tr>
             """
 
     # Insert SAST findings rows
     html_content = html_content.replace(
         "<!-- SAST Findings will be inserted here -->", sast_findings_rows
+    )
+
+    # Insert vulnerabilities rows
+    html_content = html_content.replace(
+        "<!-- Vulnerabilities will be inserted here -->", vulnerabilities_rows
     )
 
     # Insert SCA records rows

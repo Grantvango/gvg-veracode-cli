@@ -1,22 +1,46 @@
 import os
 import subprocess
 import logging
+import requests
+import shutil
 
 from veracode_wrapper.utils import TEMP_DIR, get_headers
 from veracode_api_signing.plugin_requests import RequestsAuthPluginVeracodeHMAC
 
+SRCCLR_API_BASE_URL = "https://api.veracode.com/srcclr"
+
 
 class Srcclr:
-    def __init__(self, install_script="srcclr_install.sh"):
-        self.install_script_path = os.path.join(
-            os.path.dirname(__file__), install_script
-        )
+    def __init__(self):
+        self.base_dir = os.path.join(TEMP_DIR, "veracode-cli-latest")
+        self.cleanup_old_versions()  # Clean up old versions during initialization
+
+    def cleanup_old_versions(self):
+        """
+        Cleanup older versions of the Veracode SCA agent in the temporary directory
+        """
+        base_dir = os.path.join(TEMP_DIR, "srcclr-latest")
+        if os.path.exists(base_dir):
+            versions = []
+            for root, dirs, files in os.walk(base_dir):
+                for directory in dirs:
+                    if directory.startswith("srcclr-"):
+                        versions.append(directory)
+
+            if versions:
+                latest_version = max(
+                    versions, key=lambda v: [int(x) for x in v.split("-")[1].split(".")]
+                )
+                for version in versions:
+                    if version != latest_version:
+                        shutil.rmtree(os.path.join(base_dir, version))
+                        logging.debug(f"Removed old version: {version}")
 
     def download_and_setup_srcclr(self):
         """
         Download and setup the srcclr CLI agent
         """
-        logging.info(
+        logging.debug(
             "Setting up srcclr CLI agent using local srcclr_install.sh script..."
         )
         install_script_path = os.path.join(
@@ -26,7 +50,7 @@ class Srcclr:
         try:
             # Ensure the script exists
             if not os.path.exists(install_script_path):
-                logging.info(
+                logging.debug(
                     f"srcclr_install.sh script not found at {install_script_path}"
                 )
                 return
@@ -36,13 +60,13 @@ class Srcclr:
 
             # Execute the local install.sh script
             subprocess.run(f"{install_script_path}", shell=True, check=True)
-            logging.info("srcclr CLI agent is set up successfully.")
+            logging.debug("srcclr CLI agent is set up successfully.")
         except subprocess.CalledProcessError as e:
-            logging.info(
+            logging.debug(
                 f"Failed to run local srcclr_install.sh script for srcclr CLI agent. Error: {e}"
             )
 
-    def create_srcclr_agent(workspace_id, agent_name):
+    def create_srcclr_agent(self, workspace_id, agent_name):
         """
         Create a new agent in the Veracode SourceClear platform
         """
@@ -56,12 +80,12 @@ class Srcclr:
             auth=RequestsAuthPluginVeracodeHMAC(),
         )
         if response.status_code == 200:
-            logging.info("Agent created successfully.")
+            logging.debug("Agent created successfully.")
             agent = response.json()
             token = agent.get("access_token")
             if token:
                 os.environ["SRCCLR_API_TOKEN"] = token
-                logging.info("SRCCLR_API_TOKEN environment variable set.")
+                logging.debug("SRCCLR_API_TOKEN environment variable set.")
 
                 # Create or update agent.yml in .srcclr directory
                 srcclr_dir = os.path.join(os.path.expanduser("~"), ".srcclr")
@@ -75,10 +99,10 @@ class Srcclr:
 
                 os.chmod(agent_yml_path, 0o600)
 
-                logging.info("agent.yml file updated with the new token.")
+                logging.debug("agent.yml file updated with the new token.")
             return agent.get("id")
         else:
-            logging.info(
+            logging.debug(
                 f"Failed to create agent. Status code: {response.status_code}, Response: {response.text}"
             )
             return None
@@ -86,7 +110,7 @@ class Srcclr:
     # How can I use teams to only get the workspaces for a specific user?
     # TODO: think about if I need to set this at the beginning or everytime the script runs
     # If I set the env varible it will only be that for script, I could set the agent.yml in .srcclr
-    def setup_srcclr_workspace():
+    def setup_srcclr_workspace(self):
         """
         Get the srcclr_workspace ID from the .srcclr/setup file or retrieve it from the API if not present
         """
@@ -101,7 +125,7 @@ class Srcclr:
                         return line.split("=")[1].strip()
 
         # If the workspace ID is not found in the setup file, retrieve it from the API
-        logging.info(
+        logging.debug(
             "srcclr_workspace ID not found in setup file. Retrieving from workspaces."
         )
         url = f"{SRCCLR_API_BASE_URL}/workspaces?filter%5Bworkspace%5D=My%20Workspace"
@@ -116,12 +140,12 @@ class Srcclr:
                     os.makedirs(srcclr_dir, exist_ok=True)
                     with open(setup_file, "a") as file:
                         file.write(f"srcclr_workspace = {workspace_id}\n")
-                    logging.info(f"Workspace ID written to setup file.")
+                    logging.debug(f"Workspace ID written to setup file.")
                     return workspace_id
-            logging.info("Workspace 'My Workspace' not found.")
+            logging.debug("Workspace 'My Workspace' not found.")
             return None
         else:
-            logging.info(
+            logging.debug(
                 f"Failed to retrieve workspaces. Status code: {response.status_code}, Response: {response.text}"
             )
             return None
@@ -139,15 +163,15 @@ class Srcclr:
             auth=RequestsAuthPluginVeracodeHMAC(),
         )
         if response.status_code == 201:
-            logging.info("Token created successfully.")
+            logging.debug("Token created successfully.")
             return response.json()
         else:
-            logging.info(
+            logging.debug(
                 f"Failed to create token. Status code: {response.status_code}, Response: {response.text}"
             )
             return None
 
-    def setup_srcclr_agent(workspace_id):
+    def setup_srcclr_agent(self, workspace_id):
         """
         Get the srcclr_agent ID from the .srcclr/setup file or retrieve it from the API if not present
         """
@@ -162,7 +186,7 @@ class Srcclr:
                         return line.split("=")[1].strip()
 
         # If the agent ID is not found in the setup file, retrieve it from the API
-        logging.info("srcclr_agent ID not found in setup file. Retrieving from API.")
+        logging.debug("srcclr_agent ID not found in setup file. Retrieving from API.")
 
         url = f"{SRCCLR_API_BASE_URL}/workspaces/{workspace_id}/agents"
         response = requests.get(
@@ -176,13 +200,13 @@ class Srcclr:
                     os.makedirs(srcclr_dir, exist_ok=True)
                     with open(setup_file, "a") as file:
                         file.write(f"srcclr_agent = {agent_id}\n")
-                    logging.info(f"Agent ID written to setup file.")
+                    logging.debug(f"Agent ID written to setup file.")
                     return agent_id
 
             # If no existing agent is found, create a new agent
-            logging.info("No existing agent found. Creating a new agent named 'CLI'.")
-            return create_srcclr_agent(workspace_id, "CLI")
-        logging.info("Issue setting up agent.")
+            logging.debug("No existing agent found. Creating a new agent named 'CLI'.")
+            return self.create_srcclr_agent(workspace_id, "CLI")
+        logging.debug("Issue setting up agent.")
         return None
 
     def regenerate_srcclr_token(workspace_id, agent_id):
@@ -194,11 +218,11 @@ class Srcclr:
             url, headers=get_headers(), auth=RequestsAuthPluginVeracodeHMAC()
         )
         if response.status_code == 200:
-            logging.info("Token regenerated successfully.")
+            logging.debug("Token regenerated successfully.")
             token = response.json().get("access_token")
             if token:
                 os.environ["SRCCLR_API_TOKEN"] = token
-                logging.info("SRCCLR_API_TOKEN environment variable set.")
+                logging.debug("SRCCLR_API_TOKEN environment variable set.")
 
                 # Create or update agent.yml in .srcclr directory
                 srcclr_dir = os.path.join(os.path.expanduser("~"), ".srcclr")
@@ -212,35 +236,35 @@ class Srcclr:
 
                 os.chmod(agent_yml_path, 0o600)
 
-                logging.info("agent.yml file updated with the new token.")
+                logging.debug("agent.yml file updated with the new token.")
             return
         else:
-            logging.info(
+            logging.debug(
                 f"Failed to regenerate token. Status code: {response.status_code}, Response: {response.text}"
             )
             return
 
-    def setup_srcclr_agent_and_token():
+    def setup_srcclr_agent_and_token(self):
         """
         Set up the srcclr agent and token
         """
-        workspace_id = setup_srcclr_workspace()
+        workspace_id = self.setup_srcclr_workspace()
 
         if not workspace_id:
-            logging.info("Workspace ID was not found or setup incorrectly.")
+            logging.debug("Workspace ID was not found or setup incorrectly.")
             return
 
-        agent_id = setup_srcclr_agent(workspace_id)
+        agent_id = self.setup_srcclr_agent(workspace_id)
 
         if not agent_id:
-            logging.info("Agent ID was not found or setup incorrectly.")
+            logging.debug("Agent ID was not found or setup incorrectly.")
             return
 
         # regenerate_srcclr_token(workspace_id, agent_id)
         # Add something to check if the token is expired and regenerate it
         return
 
-    def locate_srcclr():
+    def locate_srcclr(self):
         """
         Locate the Veracode SCA agent JAR and JRE in the temporary directory
         """
@@ -284,11 +308,11 @@ class Srcclr:
             )
             return None
 
-    def srcclr_scan(directory):
+    def srcclr_scan(self, directory):
         """
         Run the Veracode SCA agent scan command
         """
-        srcclr_path = locate_srcclr()
+        srcclr_path = self.locate_srcclr()
         # Create scan_results directory within the temp directory
         scan_results_dir = os.path.join(
             TEMP_DIR, "scan_results", os.path.basename(directory)
@@ -296,14 +320,19 @@ class Srcclr:
         os.makedirs(scan_results_dir, exist_ok=True)
         json_output_path = os.path.join(scan_results_dir, "sca_results.json")
 
+        # Check if json_output_path exists and delete it if it does
+        if os.path.exists(json_output_path):
+            os.remove(json_output_path)
+            logging.debug(f"Deleted existing file at {json_output_path}")
+
         srcclr_scan_command = (
             f"{srcclr_path} scan {directory} --no-upload --json {json_output_path}"
         )
-        logging.info(srcclr_scan_command)
+        logging.debug(srcclr_scan_command)
         result = subprocess.run(
             srcclr_scan_command.split(), capture_output=True, text=True
         )
         if result.returncode == 0:
-            logging.info(result.stdout)
+            logging.debug(result.stdout)
         else:
-            logging.info(f"Error running srcclr: {result.stderr}")
+            logging.debug(f"Error running srcclr: {result.stderr}")

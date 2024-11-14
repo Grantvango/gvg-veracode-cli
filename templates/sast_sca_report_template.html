@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>SAST and SCA Results Report</title>
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				background-color: #c5c5c5;
+				color: #333;
+			}
+			.header {
+				background-color: #00743e; /* Green */
+				color: white;
+				padding: 10px;
+				text-align: center;
+				border-radius: 10px; /* Make the header round */
+			}
+			.content {
+				padding: 20px;
+			}
+			table {
+				width: 100%;
+				border-collapse: separate;
+				border-spacing: 0;
+				margin-bottom: 20px;
+				border: 1px solid #ddd;
+				border-radius: 10px;
+				overflow: visible;
+			}
+			th,
+			td {
+				border: 1px solid #ddd;
+				padding: 8px;
+				text-align: center; /* Center text in cells */
+				vertical-align: middle; /* Center text vertically */
+			}
+			th {
+				background-color: #00743e; /* Green */
+				color: white;
+			}
+			tr:nth-child(even) {
+				background-color: #f9f9f9;
+			}
+			tr:nth-child(odd) {
+				background-color: #f3f3f3;
+			}
+			tr:hover {
+				background-color: #ddd;
+			}
+			th:first-child {
+				border-top-left-radius: 10px;
+			}
+			th:last-child {
+				border-top-right-radius: 10px;
+			}
+			tr:last-child td:first-child {
+				border-bottom-left-radius: 10px;
+			}
+			tr:last-child td:last-child {
+				border-bottom-right-radius: 10px;
+			}
+			.tooltip {
+				position: relative;
+				display: inline-block;
+			}
+			.tooltip .tooltiptext {
+				visibility: hidden;
+				width: 300px;
+				background-color: #f9f9f9;
+				color: #333;
+				text-align: left;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+				padding: 10px;
+				position: absolute;
+				z-index: 1000; /* Ensure the tooltip is above everything */
+				bottom: 125%; /* Position above the text */
+				left: 50%;
+				transform: translateX(-50%);
+				opacity: 0;
+				transition: opacity 0.3s;
+			}
+			.tooltip .tooltiptext.show {
+				visibility: visible;
+				opacity: 1;
+			}
+			.exploitability-cell {
+				text-align: center;
+				vertical-align: middle;
+			}
+
+			.epss-container {
+				position: relative;
+				display: inline-block;
+			}
+
+			.epss-button {
+				background-color: #00743e;
+				color: white;
+				padding: 5px 10px;
+				border: none;
+				cursor: pointer;
+				border-radius: 10px; /* Make the button round */
+			}
+
+			.epss-details-dropdown {
+				display: none;
+				position: absolute;
+				background-color: #f9f9f9;
+				min-width: 200px;
+				box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.2);
+				z-index: 1;
+				padding: 10px;
+				border-radius: 5px;
+				text-align: left;
+				right: 0; /* Align to the left of the container */
+			}
+
+			.epss-container:hover .epss-details-dropdown {
+				display: block;
+			}
+		</style>
+		<script>
+			function adjustTooltipPosition(tooltip) {
+				const rect = tooltip.getBoundingClientRect();
+				if (rect.right > window.innerWidth) {
+					tooltip.style.left = 'auto';
+					tooltip.style.right = '0';
+				}
+				if (rect.top < 0) {
+					tooltip.style.bottom = 'auto';
+					tooltip.style.top = '100%';
+				}
+			}
+
+			function toggleTooltip(button) {
+				const tooltip = button.nextElementSibling;
+				tooltip.classList.toggle('show');
+				adjustTooltipPosition(tooltip);
+			}
+
+			document.addEventListener('DOMContentLoaded', () => {
+				const tooltips = document.querySelectorAll('.tooltip .tooltiptext');
+				tooltips.forEach((tooltip) => {
+					adjustTooltipPosition(tooltip);
+				});
+			});
+		</script>
+	</head>
+	<body>
+		<div class="header">
+			<h1>SAST and SCA Results Report</h1>
+		</div>
+		<div class="content">
+			<h2>SAST Vulnerabilities</h2>
+			<table>
+				<tr>
+					<th>CWE ID</th>
+					<th>CWE Name</th>
+					<th>Description</th>
+					<th>Severity</th>
+					<th>File</th>
+					<th>Line</th>
+					<th>Function Name</th>
+				</tr>
+				<!-- SAST Findings will be inserted here -->
+				<tbody id="sast-findings"></tbody>
+			</table>
+			<h2>SCA Vulnerabilities</h2>
+			<table>
+				<tr>
+					<th>CVE</th>
+					<th>Title</th>
+					<th>Overview</th>
+					<th>Language</th>
+					<th>CVSS Score</th>
+					<th>CVSS3 Score</th>
+					<th>CVSS Vector</th>
+					<th>CVSS3 Vector</th>
+					<th>Has Exploits</th>
+					<th>Exploitability</th>
+				</tr>
+				<!-- Vulnerabilities will be inserted here -->
+				<tbody id="vulnerabilities"></tbody>
+			</table>
+			<h2>Component Details</h2>
+			<table>
+				<tr>
+					<th>Name</th>
+					<th>Description</th>
+					<th>Author</th>
+					<th>Language</th>
+					<th>Latest Release</th>
+					<th>Latest Release Date</th>
+				</tr>
+				<!-- SCA Records will be inserted here -->
+				<tbody id="sca-records"></tbody>
+			</table>
+		</div>
+	</body>
+</html>

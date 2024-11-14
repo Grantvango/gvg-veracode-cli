@@ -2,6 +2,7 @@ import os
 import subprocess
 import logging
 import platform
+import shutil
 
 from veracode_wrapper.utils import TEMP_DIR
 
@@ -9,6 +10,28 @@ from veracode_wrapper.utils import TEMP_DIR
 class VeracodeCLI:
     def __init__(self):
         self.base_dir = os.path.join(TEMP_DIR, "veracode-cli-latest")
+        self.cleanup_old_versions()  # Clean up old versions during initialization
+
+    def cleanup_old_versions(self):
+        """
+        Cleanup older versions of the Veracode CLI tool in the temporary directory
+        """
+        base_dir = os.path.join(TEMP_DIR, "veracode-cli-latest")
+        if os.path.exists(base_dir):
+            versions = []
+            for root, dirs, files in os.walk(base_dir):
+                for directory in dirs:
+                    if directory.startswith("veracode-cli_"):
+                        versions.append(directory)
+
+            if versions:
+                latest_version = max(
+                    versions, key=lambda v: [int(x) for x in v.split("_")[1].split(".")]
+                )
+                for version in versions:
+                    if version != latest_version:
+                        shutil.rmtree(os.path.join(base_dir, version))
+                        logging.debug(f"Removed old version: {version}")
 
     def download_and_setup_veracode_cli(self):
         """

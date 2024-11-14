@@ -13,6 +13,7 @@ from veracode_wrapper.utils import (
     TEMP_DIR,
     validate_setup,
     parse_results,
+    cleanup_temp_dir,  # Import the new function
 )
 from veracode_wrapper.veracode_cli import VeracodeCLI
 from veracode_wrapper.srcclr import Srcclr
@@ -94,12 +95,21 @@ def main():
         description="Tool used to perform SAST/SCA scan an application directory."
     )
     parser.add_argument(
-        "--setup", action="store_true", help="Set up all tools and credentials"
+        "--setup", "-s", action="store_true", help="Set up all tools and credentials"
+    )
+    parser.add_argument(
+        "--cleanup", "-c", action="store_true", help="Clean up the temporary directory"
     )
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument("--dir", type=str, help="Directory to process")
+    group.add_argument("--dir", "-d", type=str, help="Directory to process")
 
     args = parser.parse_args()
+
+    # Clean up the temporary directory
+    if args.cleanup:
+        cleanup_temp_dir()
+        logging.info("Temporary directory cleaned up.")
+        return
 
     # Setup all tools and credentials
     if args.setup:

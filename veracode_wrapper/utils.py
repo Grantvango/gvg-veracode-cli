@@ -47,6 +47,21 @@ def cleanup_temp_dir():
         logging.debug(f"Cleaned up temporary directory: {TEMP_DIR}")
 
 
+def cleanup_packages_dir():
+    """
+    Cleanup the packages directory within the temporary directory
+    """
+    packages_dir = os.path.join(TEMP_DIR, "packages")
+    if os.path.exists(packages_dir):
+        for root, dirs, files in os.walk(packages_dir, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+        os.rmdir(packages_dir)
+        logging.debug(f"Cleaned up packages directory: {packages_dir}")
+
+
 def validate_setup():
     """
     Validate the setup by checking if the tools are installed and the Veracode API credentials are set up
@@ -260,5 +275,4 @@ def parse_results(package_path, output_html_path):
     logging.info(f"HTML report generated at {output_html_path}")
 
 
-# TODO: Add a function to clean up the temporary directory
 # TODO: Add a function to clean up package directories to make sure its scanning only artifacts from CLI auto package

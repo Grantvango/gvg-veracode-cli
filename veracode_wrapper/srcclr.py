@@ -2,6 +2,7 @@ import os
 import subprocess
 import logging
 import requests
+import shutil
 
 from veracode_wrapper.utils import TEMP_DIR, get_headers
 from veracode_api_signing.plugin_requests import RequestsAuthPluginVeracodeHMAC
@@ -12,6 +13,28 @@ SRCCLR_API_BASE_URL = "https://api.veracode.com/srcclr"
 class Srcclr:
     def __init__(self):
         self.base_dir = os.path.join(TEMP_DIR, "veracode-cli-latest")
+        self.cleanup_old_versions()  # Clean up old versions during initialization
+
+    def cleanup_old_versions(self):
+        """
+        Cleanup older versions of the Veracode SCA agent in the temporary directory
+        """
+        base_dir = os.path.join(TEMP_DIR, "srcclr-latest")
+        if os.path.exists(base_dir):
+            versions = []
+            for root, dirs, files in os.walk(base_dir):
+                for directory in dirs:
+                    if directory.startswith("srcclr-"):
+                        versions.append(directory)
+
+            if versions:
+                latest_version = max(
+                    versions, key=lambda v: [int(x) for x in v.split("-")[1].split(".")]
+                )
+                for version in versions:
+                    if version != latest_version:
+                        shutil.rmtree(os.path.join(base_dir, version))
+                        logging.debug(f"Removed old version: {version}")
 
     def download_and_setup_srcclr(self):
         """

@@ -4,6 +4,7 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>SAST and SCA Results Report</title>
+		<script src="https://d3js.org/d3.v3.min.js"></script>
 		<style>
 			body {
 				font-family: Arial, sans-serif;
@@ -121,6 +122,33 @@
 			.epss-container:hover .epss-details-dropdown {
 				display: block;
 			}
+			#chart,
+			#breadcrumb {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				margin-bottom: 20px;
+			}
+			.trail {
+				font-size: 10px;
+				fill: rgb(193, 17, 17);
+				text-anchor: start;
+				font-family: Arial, sans-serif;
+			}
+			.breadcrumb {
+				margin-bottom: 10px;
+			}
+			.trail .breadcrumb {
+				fill: #666;
+				font-size: 10px;
+				cursor: pointer;
+			}
+			.trail text {
+				font-size: 10px;
+				fill: rgb(255, 255, 255);
+				text-anchor: start;
+				pointer-events: none;
+			}
 		</style>
 		<script>
 			function adjustTooltipPosition(tooltip) {
@@ -198,6 +226,189 @@
 				<!-- SCA Records will be inserted here -->
 				<tbody id="sca-records"></tbody>
 			</table>
+			<h2>Dependency Graph</h2>
+			<!-- Breadcrumb and sunburst chart -->
+			<div id="breadcrumb"></div>
+			<div id="chart"></div>
 		</div>
+		<script>
+			const jsonData = {
+				name: 'root',
+				children: [
+					{
+						name: 'home1',
+						children: [
+							{ name: 'about', size: 5 },
+							{ name: 'contact', size: 5 },
+							{
+								name: 'products',
+								children: [
+									{ name: 'item1', size: 5 },
+									{ name: 'item2', size: 5 },
+									{ name: 'item3', size: 5 },
+								],
+							},
+						],
+					},
+					{
+						name: 'home2',
+						children: [
+							{ name: 'about', size: 5 },
+							{ name: 'contact', size: 5 },
+							{
+								name: 'products',
+								children: [
+									{ name: 'item1', size: 5 },
+									{ name: 'item2', size: 5 },
+									{ name: 'item3', size: 5 },
+								],
+							},
+						],
+					},
+				],
+			};
+
+			const width = 400;
+			const radius = width / 2;
+
+			const b = { w: 100, h: 30, s: 3, t: 10 }; // Breadcrumb dimensions
+
+			const colors = {
+				home1: '#718355',
+				home2: '#718343',
+				about: '#87986a',
+				contact: '#97a97c',
+				products: '#b5c99a',
+				item1: '#cfe1b9',
+				item2: '#e9f5db',
+				item3: '#FFFFFF',
+			};
+
+			let totalSize = 0;
+
+			const vis = d3
+				.select('#chart')
+				.append('svg')
+				.attr('width', width)
+				.attr('height', width)
+				.append('g')
+				.attr('transform', `translate(${width / 2},${width / 2})`);
+
+			const partition = d3.layout
+				.partition()
+				.size([2 * Math.PI, radius * radius])
+				.value((d) => d.size);
+
+			const arc = d3.svg
+				.arc()
+				.startAngle((d) => d.x)
+				.endAngle((d) => d.x + d.dx)
+				.innerRadius((d) => Math.sqrt(d.y))
+				.outerRadius((d) => Math.sqrt(d.y + d.dy));
+
+			function createVisualization(json) {
+				const nodes = partition.nodes(json).filter((d) => d.dx > 0.005);
+				const path = vis
+					.data([json])
+					.selectAll('path')
+					.data(nodes)
+					.enter()
+					.append('path')
+					.attr('display', (d) => (d.depth ? null : 'none'))
+					.attr('d', arc)
+					.attr('fill-rule', 'evenodd')
+					.style('fill', (d) => colors[d.name])
+					.style('opacity', 1)
+					.on('mouseover', mouseover);
+
+				d3.select('#chart').on('mouseleave', mouseleave);
+				totalSize = path.node().__data__.value;
+				console.log(path);
+				initializeBreadcrumbTrail();
+			}
+
+			function mouseover(d) {
+				const sequenceArray = getAncestors(d);
+				updateBreadcrumbs(sequenceArray);
+
+				vis.selectAll('path').style('opacity', 0.3);
+				vis
+					.selectAll('path')
+					.filter((node) => sequenceArray.indexOf(node) >= 0)
+					.style('opacity', 1);
+			}
+
+			function mouseleave(d) {
+				d3.select('#trail').style('visibility', 'hidden');
+
+				vis.selectAll('path').transition().duration(500).style('opacity', 1);
+			}
+
+			function getAncestors(node) {
+				const path = [];
+				let current = node;
+				while (current.parent) {
+					path.unshift(current);
+					current = current.parent;
+				}
+				return path;
+			}
+
+			function initializeBreadcrumbTrail() {
+				const trail = d3
+					.select('#breadcrumb')
+					.append('svg')
+					.attr('width', '100%')
+					.attr('height', 30)
+					.attr('id', 'trail');
+				trail.append('text').attr('id', 'endlabel').style('fill', '#000');
+			}
+
+			function breadcrumbPoints(d, i) {
+				const points = [];
+				points.push('0,0');
+				points.push(b.w + ',0');
+				points.push(b.w + b.t + ',' + b.h / 2);
+				points.push(b.w + ',' + b.h);
+				points.push('0,' + b.h);
+				if (i > 0) {
+					points.push(b.t + ',' + b.h / 2);
+				}
+				return points.join(' ');
+			}
+
+			function updateBreadcrumbs(nodeArray) {
+				const g = d3
+					.select('#trail')
+					.selectAll('g')
+					.data(nodeArray, (d) => d.name + d.depth);
+
+				const entering = g.enter().append('g');
+				entering
+					.append('polygon')
+					.attr('points', breadcrumbPoints)
+					.style('fill', (d) => colors[d.name]);
+
+				entering
+					.append('text')
+					.attr('x', (b.w + b.t) / 2)
+					.attr('y', b.h / 2)
+					.attr('dy', '0.35em')
+					.attr('text-anchor', 'middle')
+					.text((d) => d.name);
+
+				g.attr('transform', (d, i) => `translate(${i * (b.w + b.s)}, 0)`);
+				g.exit().remove();
+
+				d3.select('#trail').style('visibility', '');
+			}
+
+			function buildHierarchy(json) {
+				return json;
+			}
+
+			const json = buildHierarchy(jsonData);
+			createVisualization(json);
+		</script>
 	</body>
 </html>

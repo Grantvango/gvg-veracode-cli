@@ -268,6 +268,18 @@ def parse_results(package_path, output_html_path):
         "<!-- SCA Records will be inserted here -->", sca_records_rows
     )
 
+    # # Insert dependency graph data
+    # html_content = html_content.replace(
+    #     "// Example data structure for the graph",
+    #     f"const graphData = {json.dumps(dependency_graph)};",
+    # )
+
+    # # Insert SCA_DATA
+    # if sca_data:
+    #     html_content = html_content.replace(
+    #         "const scaData = SCA_DATA;", f"const scaData = {json.dumps(sca_data)};"
+    #     )
+
     # Write the final HTML content to the output file
     with open(output_html_path, "w") as html_file:
         html_file.write(html_content)

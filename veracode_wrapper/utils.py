@@ -123,6 +123,7 @@ def parse_results(package_path, output_html_path):
     sast_findings = []
     sca_records = []
     vulnerabilities = []
+    sca_graph_data = {}
 
     # Iterate through the package_path directory to find JSON files
     for root, dirs, files in os.walk(package_path):
@@ -135,8 +136,12 @@ def parse_results(package_path, output_html_path):
                 with open(os.path.join(root, file), "r") as json_file:
                     data = json.load(json_file)
                     sca_records.extend(data.get("records", []))
-                    for record in data.get("records", []):
-                        vulnerabilities.extend(record.get("vulnerabilities", []))
+                    if sca_records:
+                        graphs = sca_records[0].get("graphs", [])
+                        if graphs:
+                            sca_graph_data = graphs[0]
+                        for record in sca_records:
+                            vulnerabilities.extend(record.get("vulnerabilities", []))
 
     logging.info(f"Found {len(sast_findings)} SAST findings.")
     logging.info(f"Found {len(sca_records)} SCA records.")
@@ -179,7 +184,12 @@ def parse_results(package_path, output_html_path):
         cve = vulnerability.get("cve", "N/A")
         title = vulnerability.get("title", "N/A")
         overview = vulnerability.get("overview", "N/A")
-        language = vulnerability.get("language", "N/A")
+        library = vulnerability.get("libraries", [])
+        if library:
+            component_name = library[0].get("_links").get("ref", "N/A")
+            component_name = 
+        else:
+            component_name = "N/A"
         cvss_score = vulnerability.get("cvssScore", "N/A")
         cvss3_score = vulnerability.get("cvss3Score", "N/A")
         cvss_vector = vulnerability.get("cvssVector", "N/A")
@@ -193,7 +203,7 @@ def parse_results(package_path, output_html_path):
             <td><a href="{veracode_link}" target="_blank">{cve}</a></td>
             <td>{title}</td>
             <td>{overview}</td>
-            <td>{language}</td>
+            <td>{component_name}</td> 
             <td>{cvss_score}</td>
             <td>{cvss3_score}</td>
             <td>{cvss_vector}</td>
@@ -268,17 +278,11 @@ def parse_results(package_path, output_html_path):
         "<!-- SCA Records will be inserted here -->", sca_records_rows
     )
 
-    # # Insert dependency graph data
-    # html_content = html_content.replace(
-    #     "// Example data structure for the graph",
-    #     f"const graphData = {json.dumps(dependency_graph)};",
-    # )
-
-    # # Insert SCA_DATA
-    # if sca_data:
-    #     html_content = html_content.replace(
-    #         "const scaData = SCA_DATA;", f"const scaData = {json.dumps(sca_data)};"
-    #     )
+    # Insert dependency graph data
+    html_content = html_content.replace(
+        "const originalJSON = SCA_GRAPH_DATA;",
+        f"const originalJSON = {json.dumps(sca_graph_data)};",
+    )
 
     # Write the final HTML content to the output file
     with open(output_html_path, "w") as html_file:

@@ -149,6 +149,18 @@
 				text-anchor: start;
 				pointer-events: none;
 			}
+			.path {
+				fill: #00743e; /* Default green */
+			}
+			.path:hover {
+				fill: #005f2e; /* Darker green on hover */
+			}
+			.breadcrumb {
+				fill: #00743e; /* Default green */
+			}
+			.breadcrumb:hover {
+				fill: #005f2e; /* Darker green on hover */
+			}
 		</style>
 		<script>
 			function adjustTooltipPosition(tooltip) {
@@ -202,7 +214,8 @@
 					<th>CVE</th>
 					<th>Title</th>
 					<th>Overview</th>
-					<th>Language</th>
+					<th>Component Name</th>
+					<!-- Changed from Language to Component Name -->
 					<th>CVSS Score</th>
 					<th>CVSS3 Score</th>
 					<th>CVSS Vector</th>
@@ -232,59 +245,42 @@
 			<div id="chart"></div>
 		</div>
 		<script>
-			const jsonData = {
-				name: 'root',
-				children: [
-					{
-						name: 'home1',
-						children: [
-							{ name: 'about', size: 5 },
-							{ name: 'contact', size: 5 },
-							{
-								name: 'products',
-								children: [
-									{ name: 'item1', size: 5 },
-									{ name: 'item2', size: 5 },
-									{ name: 'item3', size: 5 },
-								],
-							},
-						],
-					},
-					{
-						name: 'home2',
-						children: [
-							{ name: 'about', size: 5 },
-							{ name: 'contact', size: 5 },
-							{
-								name: 'products',
-								children: [
-									{ name: 'item1', size: 5 },
-									{ name: 'item2', size: 5 },
-									{ name: 'item3', size: 5 },
-								],
-							},
-						],
-					},
-				],
-			};
+			const originalJSON = SCA_GRAPH_DATA;
+
+			// Convert JSON to D3-compatible format
+			function convertJSON(input) {
+				function processNode(node) {
+					return {
+						name: node.coords.coordinate1 + ' ' + (node.coords.version || ''),
+						children: node.directs.map(processNode),
+					};
+				}
+				return processNode(input);
+			}
+
+			const jsonData = convertJSON(originalJSON);
 
 			const width = 400;
 			const radius = width / 2;
 
-			const b = { w: 100, h: 30, s: 3, t: 10 }; // Breadcrumb dimensions
+			const b = { w: 100, h: 30, s: 5, t: 10 }; // Breadcrumb dimensions
 
-			const colors = {
-				home1: '#718355',
-				home2: '#718343',
-				about: '#87986a',
-				contact: '#97a97c',
-				products: '#b5c99a',
-				item1: '#cfe1b9',
-				item2: '#e9f5db',
-				item3: '#FFFFFF',
-			};
+			const scale = 9; // Scale factor for breadcrumb text
 
-			let totalSize = 0;
+			const colors = d3.scale
+				.ordinal()
+				.range([
+					'#00743e',
+					'#198151',
+					'#328f64',
+					'#4c9d77',
+					'#66ab8b',
+					'#7fb99e',
+					'#99c7b1',
+					'#b2d5c5',
+					'#cce3d8',
+					'#e5f1eb',
+				]);
 
 			const vis = d3
 				.select('#chart')
@@ -297,7 +293,7 @@
 			const partition = d3.layout
 				.partition()
 				.size([2 * Math.PI, radius * radius])
-				.value((d) => d.size);
+				.value((d) => d.size || 1);
 
 			const arc = d3.svg
 				.arc()
@@ -306,24 +302,26 @@
 				.innerRadius((d) => Math.sqrt(d.y))
 				.outerRadius((d) => Math.sqrt(d.y + d.dy));
 
-			function createVisualization(json) {
-				const nodes = partition.nodes(json).filter((d) => d.dx > 0.005);
+			function createVisualization(jsonData) {
+				const nodes = partition.nodes(jsonData).filter((d) => d.dx > 0.005);
+
 				const path = vis
-					.data([json])
 					.selectAll('path')
 					.data(nodes)
 					.enter()
 					.append('path')
+					.attr('class', 'path')
 					.attr('display', (d) => (d.depth ? null : 'none'))
 					.attr('d', arc)
-					.attr('fill-rule', 'evenodd')
-					.style('fill', (d) => colors[d.name])
-					.style('opacity', 1)
+					.style('fill', (d) => colors((d.children ? d : d.parent).name))
 					.on('mouseover', mouseover);
+				// .attr('fill-rule', 'evenodd')
+				// .style('opacity', 1)
+
+				console.log(path);
 
 				d3.select('#chart').on('mouseleave', mouseleave);
 				totalSize = path.node().__data__.value;
-				console.log(path);
 				initializeBreadcrumbTrail();
 			}
 
@@ -331,7 +329,7 @@
 				const sequenceArray = getAncestors(d);
 				updateBreadcrumbs(sequenceArray);
 
-				vis.selectAll('path').style('opacity', 0.3);
+				vis.selectAll('path').style('opacity', 0.9);
 				vis
 					.selectAll('path')
 					.filter((node) => sequenceArray.indexOf(node) >= 0)
@@ -365,16 +363,26 @@
 			}
 
 			function breadcrumbPoints(d, i) {
+				console.log(d.name.length);
+				const nameLength = d.name.length * scale;
 				const points = [];
 				points.push('0,0');
-				points.push(b.w + ',0');
-				points.push(b.w + b.t + ',' + b.h / 2);
-				points.push(b.w + ',' + b.h);
+				points.push(nameLength + ',0');
+				points.push(nameLength + b.t + ',' + b.h / 2);
+				points.push(nameLength + ',' + b.h);
 				points.push('0,' + b.h);
 				if (i > 0) {
 					points.push(b.t + ',' + b.h / 2);
 				}
 				return points.join(' ');
+			}
+
+			function getTextWidth(text, font) {
+				const canvas = document.createElement('canvas');
+				const context = canvas.getContext('2d');
+				context.font = font;
+				const metrics = context.measureText(text);
+				return metrics.width;
 			}
 
 			function updateBreadcrumbs(nodeArray) {
@@ -386,29 +394,30 @@
 				const entering = g.enter().append('g');
 				entering
 					.append('polygon')
+					.attr('class', 'breadcrumb')
 					.attr('points', breadcrumbPoints)
-					.style('fill', (d) => colors[d.name]);
+					.style('fill', (d) => colors((d.children ? d : d.parent).name));
 
 				entering
 					.append('text')
-					.attr('x', (b.w + b.t) / 2)
+					.attr('x', (d) => (d.name.length * scale + b.t) / 2)
 					.attr('y', b.h / 2)
 					.attr('dy', '0.35em')
 					.attr('text-anchor', 'middle')
 					.text((d) => d.name);
 
-				g.attr('transform', (d, i) => `translate(${i * (b.w + b.s)}, 0)`);
+				let cumulativeWidth = 0;
+				g.attr('transform', (d, i) => {
+					const transform = `translate(${cumulativeWidth}, 0)`;
+					cumulativeWidth += d.name.length * scale + b.s;
+					return transform;
+				});
 				g.exit().remove();
 
 				d3.select('#trail').style('visibility', '');
 			}
 
-			function buildHierarchy(json) {
-				return json;
-			}
-
-			const json = buildHierarchy(jsonData);
-			createVisualization(json);
+			createVisualization(jsonData);
 		</script>
 	</body>
 </html>
